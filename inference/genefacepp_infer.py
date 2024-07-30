@@ -97,7 +97,7 @@ def inject_blink_to_lm68(lm68, opened_eye_area_percent=0.6, closed_eye_area_perc
     closed_eye_lm68[:,44] = closed_eye_lm68[:,46] = closed_eye_lm68[:,42] * 0.33 + closed_eye_lm68[:,45] * 0.67
     
     T = len(lm68)
-    period = 100
+    period = 125
     # blink_factor_lst = np.array([0.4, 0.4, 0.6, 0.8, 1.0, 0.8, 0.6, 0.4, 0.4]) # * 0.9
     # blink_factor_lst = np.array([0.4, 0.7, 0.8, 1.0, 0.8, 0.6, 0.4]) # * 0.9
     blink_factor_lst = np.array([0.1, 0.5, 0.7, 1.0, 0.7, 0.5, 0.1]) # * 0.9
@@ -534,6 +534,9 @@ class GeneFace2Infer:
         inp = inp_tmp
 
         infer_instance = cls(inp['a2m_ckpt'], inp['postnet_ckpt'], inp['head_ckpt'], inp['torso_ckpt'])
+        # print("audio2secc_model: ", infer_instance.audio2secc_model, " Given a2m_ckpt: ", inp['a2m_ckpt'])
+        # print("postnet_model: ", infer_instance.postnet_model, " Given postnet_ckpt: ", inp['postnet_ckpt'])
+        # print("secc2video_model: ", infer_instance.secc2video_model, " Given head_ckpt: ", inp['head_ckpt'], " & torso_ckpt: ", inp['torso_ckpt'])
         infer_instance.infer_once(inp)
 
     ##############
@@ -590,4 +593,7 @@ if __name__ == '__main__':
             }
     if args.fast:
         inp['raymarching_end_threshold'] = 0.05
+    
+    start_time = time.time()
     GeneFace2Infer.example_run(inp)
+    print(f"Elapsed time: {time.time()-start_time:.2f}s")

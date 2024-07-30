@@ -9,7 +9,12 @@ deep_3drecon/BFM/BFM_model_front.mat
 deep_3drecon/network/FaceReconModel.pb
 deep_3drecon/checkpoints/*
 
+TestResults/
+TestAudios/
+GFPPAbdurTestVideos/
+
 .vscode
+=5.2.0
 ### Project ignore
 /checkpoints/*
 !/checkpoints/.gitkeep

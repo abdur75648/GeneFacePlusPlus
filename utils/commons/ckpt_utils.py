@@ -33,6 +33,7 @@ def load_ckpt(cur_model, ckpt_base_dir, model_name='model', force=True, strict=T
         checkpoint = torch.load(ckpt_base_dir, map_location='cpu')
     else:
         base_dir = ckpt_base_dir
+        print(f"| \nLoading the last checkpoint from {ckpt_base_dir} in utils/commons/ckpt_utils.py\n\n")
         checkpoint, ckpt_path = get_last_checkpoint(ckpt_base_dir, steps)
     if checkpoint is not None:
         state_dict = checkpoint["state_dict"]

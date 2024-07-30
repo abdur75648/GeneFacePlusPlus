@@ -359,6 +359,7 @@ def fit_3dmm_for_a_video(
 
     coeff_dict = {'id': id_para.detach().cpu().numpy(), 'exp': exp_para.detach().cpu().numpy(),
                 'euler': euler_angle.detach().cpu().numpy(), 'trans': trans.detach().cpu().numpy()}
+    print("finished fitting 3dmm for ", video_name)
 
     # filter data by side-view pose    
     # bad_yaw = False
@@ -371,6 +372,7 @@ def fit_3dmm_for_a_video(
     #         bad_yaw = True
     
     if debug:
+        print("Preparing debug video...")
         import imageio
         from utils.visualization.vis_cam3d.camera_pose_visualizer import CameraPoseVisualizer
         from data_util.face3d_helper import Face3DHelper
@@ -414,6 +416,8 @@ def fit_3dmm_for_a_video(
         lm68s[..., 1] = img_h - lm68s[..., 1] # flip the height axis
         lms[..., 1] = img_h - lms[..., 1] # flip the height axis
         lm68s = lm68s.astype(int)
+        if len(frames) > 250:
+            print(f"Too many frames, only render the first 250 frames in debug video")
         for i in tqdm.trange(min(250, len(frames)), desc=f'rendering debug video to {debug_name}..'):
             xy_cam3d_img = xy_camera_visualizer.extrinsic2pyramid(extrinsic[i], focal_len_scaled=0.25)
             xy_cam3d_img = cv2.resize(xy_cam3d_img, (512,512))
@@ -561,5 +565,5 @@ if __name__ == '__main__':
             failed_img_names.append(img_name)
         print(f"finished {i + 1} / {len(vid_names)} = {(i + 1) / len(vid_names):.4f}, failed {len(failed_img_names)} / {i + 1} = {len(failed_img_names) / (i + 1):.4f}")
         sys.stdout.flush()
-    print(f"all failed image names: {failed_img_names}")
+    print(f"IMPORTANT -> Failed image names: {failed_img_names}!")
     print(f"All finished!")

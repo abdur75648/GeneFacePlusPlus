@@ -13,7 +13,7 @@ from data_gen.utils.mp_feature_extractors.face_landmarker import MediapipeLandma
 import warnings
 import traceback
 
-warnings.filterwarnings('ignore')
+# warnings.filterwarnings('ignore')
 
 """
 基于Face_aligment的lm68已被弃用,因为其：
