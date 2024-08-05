@@ -70,7 +70,7 @@ cd GeneFacePlusPlus
 ```bash
 docker pull nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
 docker build -t ubuntu22.04-cu118-conda:torch2.0.1-py39 -f Dockerfile.cu118.torch2.0.1.py39   .
-docker build -t genfaceplus:0219 -f Dockerfile.genface .
+docker build -t genfaceplus:latest -f Dockerfile.genface .
 ```
 
 ### Step 6: Prepare the Files
@@ -107,7 +107,7 @@ cd ..
 
 ### Step 7: Start a Docker Container
 ```bash
-docker run -it --name geneface -p 7869:7860 --gpus all -v ~/.cache:/root/.cache -v ~/GeneFacePlusPlus:/GeneFacePlusPlus/  genfaceplus:0219 /bin/bash
+docker run -it --name geneface -p 7869:7860 --gpus all -v ~/.cache:/root/.cache -v ~/GeneFacePlusPlus:/GeneFacePlusPlus/  genfaceplus:latest /bin/bash
 ```
 
 ### Step 8: Activate the Inference Environment
@@ -155,10 +155,10 @@ bash prepare_training_data.sh
 - Set `VIDEO_ID` as per the name of your video
 - It should take approximately 1.5 hour to finish all the processing for a 5-minute video <!-- To-Do -->
 - The processed data will be saved in `data/binary/videos/${VIDEO_ID}/`
-- Copy a config folder `egs/datasets/{Video_ID}` following `egs/datasets/May`
-    - Make sure to change the ```video_id``` in ```lm3d_radnerf_torso.yaml``` and ```lm3d_radnerf_torso.yaml``` from ```May``` to your ```VIDEO_ID```
+- Copy a config folder `egs/datasets/{Video_ID}` following `egs/datasets/Custom`
+    - Make sure to change the ```video_id``` in ```lm3d_radnerf_torso.yaml``` and ```lm3d_radnerf.yaml``` from ```Custom``` to your ```VIDEO_ID```
     - Make sure to change the ```head_model_dir``` in ```lm3d_radnerf_torso.yaml``` as per your ```VIDEO_ID```
-- Use the command lines below to train the NeRF: <!-- To-Do -->
+- Use the command lines below to train the NeRF models
 
 First, train the Head NeRF model:
 ```bash

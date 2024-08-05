@@ -5,13 +5,25 @@ set -e
 START_TIME=$(date +%s)
 
 # Assuming video is saved in data/raw/videos/${VIDEO_ID}.mp4
-export VIDEO_ID="ReadingStyleZoomedIn"
+export VIDEO_ID="X"
 
 # Step 0: Standardize video resolution to 512x512 and FPS to 25
-echo "Step 0: Standardizing video resolution and FPS..."
+echo "Step 0.1: Standardizing video resolution and FPS..."
 ffmpeg -i data/raw/videos/${VIDEO_ID}.mp4 -vf fps=25,scale=w=512:h=512 -qmin 1 -q:v 1 data/raw/videos/${VIDEO_ID}_512.mp4
 mv data/raw/videos/${VIDEO_ID}.mp4 data/raw/videos/${VIDEO_ID}_to_rm.mp4
 mv data/raw/videos/${VIDEO_ID}_512.mp4 data/raw/videos/${VIDEO_ID}.mp4
+
+# Step 0.2: Creating config files
+echo "Step 0.2: Creating config files..."
+# Copy all .yaml files from egs/datasets/Custom/ to egs/datasets/${VIDEO_ID}/
+mkdir -p egs/datasets/${VIDEO_ID}
+cp egs/datasets/Custom/*.yaml egs/datasets/${VIDEO_ID}/
+# change the ```video_id``` in egs/datasets/${VIDEO_ID}/lm3d_radnerf_torso.yaml from ```Custom``` to your ```VIDEO_ID```
+sed -i "s/video_id: Custom/video_id: $VIDEO_ID/" "egs/datasets/$VIDEO_ID/lm3d_radnerf_torso.yaml" 
+# change the ```video_id``` in egs/datasets/${VIDEO_ID}/lm3d_radnerf.yaml from ```Custom``` to your ```VIDEO_ID```
+sed -i "s/video_id: Custom/video_id: $VIDEO_ID/" "egs/datasets/$VIDEO_ID/lm3d_radnerf.yaml"
+# Change the ```head_model_dir``` in ```lm3d_radnerf_torso.yaml``` as per your ```VIDEO_ID``` [Format is checkpoints/$VIDEO_ID/lm3d_radnerf]
+sed -i "s/head_model_dir: checkpoints\/Custom\/lm3d_radnerf/head_model_dir: checkpoints\/$VIDEO_ID\/lm3d_radnerf/" "egs/datasets/$VIDEO_ID/lm3d_radnerf_torso.yaml"
 
 # Step 1: Extract audio features
 echo "Step 1: Extracting audio features..."

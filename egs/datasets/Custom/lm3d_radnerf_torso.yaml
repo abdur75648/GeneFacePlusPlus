@@ -1,9 +1,9 @@
 base_config:
   - egs/egs_bases/radnerf/lm3d_radnerf.yaml
 
-video_id: Abdur # the video file should be located at `data/raw/videos/<video_id>.mp4`
+video_id: Custom # the video file should be located at `data/raw/videos/<video_id>.mp4`
 task_cls: tasks.radnerfs.radnerf_torso.RADNeRFTorsoTask
-head_model_dir: checkpoints/Abdur/lm3d_radnerf
+head_model_dir: checkpoints/Custom/lm3d_radnerf
 
 torso_train_mode: 1
 
