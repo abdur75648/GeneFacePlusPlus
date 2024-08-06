@@ -9,9 +9,15 @@ deep_3drecon/BFM/BFM_model_front.mat
 deep_3drecon/network/FaceReconModel.pb
 deep_3drecon/checkpoints/*
 
+egs/datasets/*
+!egs/datasets/AbdurHD/
+!egs/datasets/Custom/
+!egs/datasets/May/
+
 TestResults/
 TestAudios/
 GFPPAbdurTestVideos/
+AbdurHD_results/
 
 .vscode
 =5.2.0

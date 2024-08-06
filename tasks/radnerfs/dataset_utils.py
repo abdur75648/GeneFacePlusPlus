@@ -294,6 +294,7 @@ class RADNeRFDataset(torch.utils.data.Dataset):
             self.lips_rect = (np.array([s['lip_rect'] for s in self.samples]) / 2).astype(int).tolist()
         self.training = training
         self.global_step = 0
+        print(f"RADNeRFDataset: {prefix} dataset loaded with samples {len(self.samples)}, H={self.H * 2 if hparams.get('with_sr') else self.H}, W={self.W * 2 if hparams.get('with_sr') else self.W}, focal={self.focal}, cx={self.cx}, cy={self.cy}, near={self.near}, far={self.far}")
 
     @property
     def num_rays(self):
@@ -400,8 +401,8 @@ class RADNeRFDataset(torch.utils.data.Dataset):
         bg_torso_img = bg_torso_img_512 = sample['torso_img']
         gt_img = sample['gt_img']
         if hparams.get("with_sr"):
-            bg_torso_img = F.interpolate(bg_torso_img.cuda().view(1, 512,512, -1).permute(0,3,1,2), size=(self.H,self.W),mode='bilinear', antialias=True).permute(0,2,3,1) # treat torso as a part of background
-            gt_img = F.interpolate(gt_img.view(1, 512,512, 3).permute(0,3,1,2), size=(self.H,self.W),mode='bilinear', antialias=True).permute(0,2,3,1).view(1, -1, 3) # treat torso as a part of background
+            bg_torso_img = F.interpolate(bg_torso_img.cuda().view(1, 1024,1024, -1).permute(0,3,1,2), size=(self.H,self.W),mode='bilinear', antialias=True).permute(0,2,3,1) # treat torso as a part of background
+            gt_img = F.interpolate(gt_img.view(1, 1024,1024, 3).permute(0,3,1,2), size=(self.H,self.W),mode='bilinear', antialias=True).permute(0,2,3,1).view(1, -1, 3) # treat torso as a part of background
 
         bg_torso_img = bg_torso_img[..., :3] * bg_torso_img[..., 3:] + self.bg_img * (1 - bg_torso_img[..., 3:])
         bg_torso_img = bg_torso_img.view(1, -1, 3) # treat torso as a part of background

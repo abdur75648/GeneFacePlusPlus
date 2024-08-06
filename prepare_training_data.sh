@@ -5,13 +5,13 @@ set -e
 START_TIME=$(date +%s)
 
 # Assuming video is saved in data/raw/videos/${VIDEO_ID}.mp4
-export VIDEO_ID="X"
+export VIDEO_ID="AbdurHD"
 
-# Step 0: Standardize video resolution to 512x512 and FPS to 25
+# Step 0: Standardize video resolution to 1024x1024 and FPS to 25
 echo "Step 0.1: Standardizing video resolution and FPS..."
-ffmpeg -i data/raw/videos/${VIDEO_ID}.mp4 -vf fps=25,scale=w=512:h=512 -qmin 1 -q:v 1 data/raw/videos/${VIDEO_ID}_512.mp4
+ffmpeg -i data/raw/videos/${VIDEO_ID}.mp4 -vf fps=25,scale=w=1024:h=1024 -qmin 1 -q:v 1 data/raw/videos/${VIDEO_ID}_1024.mp4
 mv data/raw/videos/${VIDEO_ID}.mp4 data/raw/videos/${VIDEO_ID}_to_rm.mp4
-mv data/raw/videos/${VIDEO_ID}_512.mp4 data/raw/videos/${VIDEO_ID}.mp4
+mv data/raw/videos/${VIDEO_ID}_1024.mp4 data/raw/videos/${VIDEO_ID}.mp4
 
 # Step 0.2: Creating config files
 echo "Step 0.2: Creating config files..."
@@ -37,7 +37,7 @@ python data_gen/utils/process_audio/extract_mel_f0.py --video_id=${VIDEO_ID} # W
 # Step 2: Extract images
 echo "Step 2: Extracting images..."
 mkdir -p data/processed/videos/${VIDEO_ID}/gt_imgs
-ffmpeg -i data/raw/videos/${VIDEO_ID}.mp4 -vf fps=25,scale=w=512:h=512 -qmin 1 -q:v 1 -start_number 0 data/processed/videos/${VIDEO_ID}/gt_imgs/%08d.jpg
+ffmpeg -i data/raw/videos/${VIDEO_ID}.mp4 -vf fps=25,scale=w=1024:h=1024 -qmin 1 -q:v 1 -start_number 0 data/processed/videos/${VIDEO_ID}/gt_imgs/%08d.jpg
 python data_gen/utils/process_video/extract_segment_imgs.py --ds_name=nerf --vid_dir=data/raw/videos/${VIDEO_ID}.mp4
 # Following subfolders are created inside data/processed/videos/${VIDEO_ID}/
 # - bg_imgs, com_imgs, gt_imgs, head_imgs, inpaint_torso_imgs, person_imgs, segmaps, torso_imgs

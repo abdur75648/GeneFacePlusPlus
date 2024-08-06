@@ -385,7 +385,7 @@ def fit_3dmm_for_a_video(
         idexp_lm3d = face3d_helper.reconstruct_idexp_lm3d_np(coeff_dict['id'], coeff_dict['exp']).reshape([t, -1])
         cano_lm3d = idexp_lm3d / 10 + face3d_helper.key_mean_shape.squeeze().reshape([1, -1]).cpu().numpy()
         cano_lm3d = cano_lm3d.reshape([t, -1, 3])
-        WH = 512
+        WH = 1024
         cano_lm3d = (cano_lm3d * WH/2 + WH/2).astype(int)
 
         with torch.no_grad():
@@ -420,9 +420,9 @@ def fit_3dmm_for_a_video(
             print(f"Too many frames, only render the first 250 frames in debug video")
         for i in tqdm.trange(min(250, len(frames)), desc=f'rendering debug video to {debug_name}..'):
             xy_cam3d_img = xy_camera_visualizer.extrinsic2pyramid(extrinsic[i], focal_len_scaled=0.25)
-            xy_cam3d_img = cv2.resize(xy_cam3d_img, (512,512))
+            xy_cam3d_img = cv2.resize(xy_cam3d_img, (1024,1024))
             xz_cam3d_img = xz_camera_visualizer.extrinsic2pyramid(extrinsic[i], focal_len_scaled=0.25)
-            xz_cam3d_img = cv2.resize(xz_cam3d_img, (512,512))
+            xz_cam3d_img = cv2.resize(xz_cam3d_img, (1024,1024))
             
             img = copy.deepcopy(frames[i])
             img2 = copy.deepcopy(frames[i])
@@ -536,7 +536,7 @@ if __name__ == '__main__':
     face_model = ParametricFaceModel(bfm_folder='deep_3drecon/BFM', 
                 camera_distance=10, focal=1015, keypoint_mode=args.keypoint_mode)
     face_model.to(torch.device("cuda:0"))
-    secc_renderer = SECC_Renderer(512)
+    secc_renderer = SECC_Renderer(1024)
     secc_renderer.to("cuda:0")
     
     process_id = args.process_id

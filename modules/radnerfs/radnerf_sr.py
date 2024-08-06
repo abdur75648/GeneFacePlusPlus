@@ -12,18 +12,18 @@ from modules.eg3ds.models.superresolution import *
 
 
 class Superresolution(torch.nn.Module):
-    def __init__(self, channels=32, img_resolution=512, sr_antialias=True):
+    def __init__(self, channels=32, img_resolution=1024, sr_antialias=True):
         super().__init__()
-        assert img_resolution == 512
+        assert img_resolution == 1024
         block_kwargs = {'channel_base': 32768, 'channel_max': 512, 'fused_modconv_default': 'inference_only'}
         use_fp16 = True
         self.sr_antialias = sr_antialias
-        self.input_resolution = 256
+        self.input_resolution = 512
         # w_dim is not necessary, will be mul by 0
         self.w_dim = 16
-        self.block0 = SynthesisBlockNoUp(channels, 128, w_dim=self.w_dim, resolution=256,
+        self.block0 = SynthesisBlockNoUp(channels, 128, w_dim=self.w_dim, resolution=512,
                 img_channels=3, is_last=False, use_fp16=use_fp16, conv_clamp=(256 if use_fp16 else None), **block_kwargs)
-        self.block1 = SynthesisBlock(128, 64, w_dim=self.w_dim, resolution=512,
+        self.block1 = SynthesisBlock(128, 64, w_dim=self.w_dim, resolution=1024,
                 img_channels=3, is_last=True, use_fp16=use_fp16, conv_clamp=(256 if use_fp16 else None), **block_kwargs)
         self.register_buffer('resample_filter', upfirdn2d.setup_filter([1,3,3,1]))
 
@@ -202,7 +202,7 @@ class RADNeRFwithSR(NeRFRenderer):
     
     def render(self, rays_o, rays_d, cond, bg_coords, poses, index=0, dt_gamma=0, bg_color=None, perturb=False, force_all_rays=False, max_steps=1024, T_thresh=1e-4, cond_mask=None, eye_area_percent=None, **kwargs):
         results = super().render(rays_o, rays_d, cond, bg_coords, poses, index, dt_gamma, bg_color, perturb, force_all_rays, max_steps, T_thresh, cond_mask, eye_area_percent=eye_area_percent, **kwargs)
-        rgb_image = results['rgb_map'].reshape([1, 256, 256, 3]).permute(0,3,1,2)
+        rgb_image = results['rgb_map'].reshape([1, 512, 512, 3]).permute(0,3,1,2)
         sr_rgb_image = self.sr_net(rgb_image.clone())
         sr_rgb_image = sr_rgb_image.clamp(0,1)
         results['rgb_map'] = rgb_image

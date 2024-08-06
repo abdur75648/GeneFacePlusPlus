@@ -29,7 +29,8 @@ from utils.nn.grad import get_grad_norm
 class FeatureMatchingLoss(nn.Module):
     def __init__(self):
         super().__init__()
-        self.hw2weight = {512: 0.03125, 256: 0.0625, 128: 0.125, 64: 0.25, 32: 1.0}
+        # self.hw2weight = {512: 0.03125, 256: 0.0625, 128: 0.125, 64: 0.25, 32: 1.0}
+        self.hw2weight = {1024: 0.015625, 512: 0.03125, 256: 0.0625, 128: 0.125, 64: 0.25, 32: 1.0}
 
     def forward(self, fake_features, real_features):
         # INPUT: list of [b, c, h, w]
@@ -113,7 +114,7 @@ class RADNeRFTask(BaseTask):
         if hparams['lambda_dual_fm'] > 0:
             hparams['base_channel'] = 32768
             hparams['max_channel'] = 512
-            hparams['final_resolution'] = 512
+            hparams['final_resolution'] = 1024
             hparams['num_fp16_layers_in_discriminator'] = 4
             hparams['group_size_for_mini_batch_std'] = 2
             hparams['disc_c_noise'] = 1
@@ -202,7 +203,7 @@ class RADNeRFTask(BaseTask):
             model_out = self.model.render(rays_o, rays_d, cond_inp, bg_coords, poses, index=idx, staged=False, bg_color=bg_color, perturb=True, force_all_rays=False, cond_mask=cond_mask, eye_area_percent=eye_area_percent, **hparams)
             pred_rgb = model_out['rgb_map']
             losses_out = {}
-            gt_rgb = sample['gt_img'].reshape([1,256,256,3]).permute(0, 3, 1, 2)
+            gt_rgb = sample['gt_img'].reshape([1,512,512,3]).permute(0, 3, 1, 2)
             # loss on img_raw
             losses_out['mse_loss'] = torch.mean((pred_rgb - gt_rgb) ** 2) # [B, N, 3] -->  scalar
             
@@ -250,7 +251,7 @@ class RADNeRFTask(BaseTask):
             model_out = self.model.render(rays_o, rays_d, cond_inp, bg_coords, poses, index=idx, staged=False, bg_color=bg_color, perturb=False, force_all_rays=True, cond_mask=cond_mask, eye_area_percent=eye_area_percent, **hparams)
             # calculate val loss
             if 'gt_img' in sample:
-                gt_rgb = sample['gt_img'].reshape([1,256,256,3]).permute(0, 3, 1, 2)
+                gt_rgb = sample['gt_img'].reshape([1,512,512,3]).permute(0, 3, 1, 2)
                 pred_rgb = model_out['rgb_map']
                 model_out['mse_loss'] = torch.mean((pred_rgb - gt_rgb) ** 2) # [B, N, 3] -->  scalar
                 model_out['lpips_loss'] = self.criterion_lpips(pred_rgb, gt_rgb).mean()
@@ -361,7 +362,7 @@ class RADNeRFTask(BaseTask):
             infer_outputs = self.run_model(sample, infer=True)
             H, W = sample['H'], sample['W']
             img_pred = infer_outputs['rgb_map'].permute(0, 2,3,1).reshape([H, W, 3])
-            img_pred_sr = infer_outputs['sr_rgb_map'].permute(0, 2,3,1).reshape([512, 512, 3])
+            img_pred_sr = infer_outputs['sr_rgb_map'].permute(0, 2,3,1).reshape([1024, 1024, 3])
             depth_pred = infer_outputs['depth_map'].reshape([H, W])
             
             base_fn = f"frame_{sample['idx']}"
@@ -375,7 +376,7 @@ class RADNeRFTask(BaseTask):
 
             if hparams['save_gt']:
                 img_gt = sample['gt_img'].reshape([H, W, 3])
-                img_gt_512 = sample['gt_img_512'].permute(0,2,3,1).reshape([512, 512, 3])
+                img_gt_512 = sample['gt_img_512'].permute(0,2,3,1).reshape([1024, 1024, 3])
                 if self.global_step == hparams['valid_infer_interval']:
                     self.logger.add_figure(f"frame_{sample['idx']}/img_gt", self.rgb_to_figure(img_gt), self.global_step)
                 base_fn = f"frame_{sample['idx']}_gt"
