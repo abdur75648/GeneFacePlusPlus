@@ -356,9 +356,11 @@ def extract_segment_job(
                 segmap_mask_lst.append(segmap_mask)
         print("| Extracted Segmaps Done.")
         
-        print("| Extracting background...")
+        print("| Extracting background... [Harcoded to green bg]!!!")
         bg_prefix_name = f"bg{BG_NAME_MAP[background_method]}"
-        bg_img = extract_background(img_lst, segmap_mask_lst, method=background_method, device=device, mix_bg=mix_bg)
+        # bg_img = extract_background(img_lst, segmap_mask_lst, method=background_method, device=device, mix_bg=mix_bg)
+        bg_img = np.zeros_like(refresh_image(img_lst[0]))
+        bg_img[..., 1] = 255
         if nerf:
             out_img_name = video_name.replace("/raw/", "/processed/").replace(".mp4", f"/{bg_prefix_name}.jpg")
         else:

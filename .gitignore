@@ -12,19 +12,27 @@ deep_3drecon/checkpoints/*
 TestResults/
 TestAudios/
 GFPPAbdurTestVideos/
+Result_*/
+screen_logs/
 
 .vscode
 =5.2.0
 ### Project ignore
-/checkpoints/*
-!/checkpoints/.gitkeep
-!/checkpoints/audio2motion_vae/.gitkeep
-!/checkpoints/motion2video_nerf/may_torso/.gitkeep
-/data/*
-!/data/.gitkeep
-!/data/binary/videos/May/.gitkeep
-!data/raw/videos/May.mp4
-!data/raw/val_wavs/zozo.wav
+checkpoints/audio2motion_vae/*
+checkpoints/motion2video_nerf/*
+!checkpoints/audio2motion_vae/.gitkeep
+!checkpoints/motion2video_nerf/.gitkeep
+/data/binary/videos/*
+!/data/binary/videos/.gitkeep
+data/processed/videos/*
+!data/processed/videos/.gitkeep
+/data/raw/videos/*
+!data/raw/videos/.gitkeep
+/data/raw/val_wavs/*
+!data/raw/val_wavs/MacronSpeech.wav
+!data/raw/val_wavs/May_10s.wav
+!data/raw/val_wavs/Obama_audio_10s.wav
+
 infer_out
 rsync
 .idea

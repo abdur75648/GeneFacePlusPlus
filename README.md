@@ -10,74 +10,183 @@ This is the official implementation of GeneFace++ [Paper](https://arxiv.org/abs/
     <br>
 </p>
 
-# Note
-The eye blink control is an experimental feature, and we are currently working on improving its robustness. Thanks for your patience.
+## Setup In EC2
 
-## You may also interested in 
-- We release Real3D-portrait (ICLR 2024 Spotlight), ([https://github.com/yerfor/Real3DPortrait](https://github.com/yerfor/Real3DPortrait)), a NeRF-based one-shot talking face system. Only upload one image and enjoy realistic talking face!
-
-## Quick Start!
-We provide a guide for a quick start in GeneFace++.
-
-- Step 1: Follow the steps in `docs/prepare_env/install_guide.md`, create a new python environment named `geneface`, and download 3DMM files into `deep_3drecib/BFM`.
-
-- Step 2: Download pre-processed dataset of May([Google Drive](https://drive.google.com/drive/folders/1SwZ7uRa5ESzzq_Cd21-Lk5heAZxa9oZO?usp=sharing) or [BaiduYun Disk](https://pan.baidu.com/s/1U_FalVoxgb9sAb9FD1cZEw?pwd=98n4) with password 98n4), and place it here `data/binary/videos/May/trainval_dataset.npy`
-
-- Step 3: Download pre-trained audio-to-motino model `audio2motion_vae.zip` ([Google Drive](https://drive.google.com/drive/folders/1M6CQH52lG_yZj7oCMaepn3Qsvb-8W2pT?usp=sharing) or [BaiduYun Disk](https://pan.baidu.com/s/19UZxMrO-ZvkOeYzUkOKsTQ?pwd=9cqp) with password 9cqp) and motion-to-video checkpoint `motion2video_nerf.zip`, which is specific to May (in this [Google Drive](https://drive.google.com/drive/folders/1M6CQH52lG_yZj7oCMaepn3Qsvb-8W2pT?usp=sharing) or in this[BaiduYun Disk](https://pan.baidu.com/s/1U_FalVoxgb9sAb9FD1cZEw?pwd=98n4) with password 98n4), and unzip them to `./checkpoints/`
-
-After these steps，your directories `checkpoints` and `data` should be like this：
-
-```
-> checkpoints
-    > audio2motion_vae
-    > motion2video_nerf
-        > may_head
-        > may_torso
-> data
-    > binary
-        > videos
-            > May
-                trainval_dataset.npy
-```
-
-- Step 4: activate `geneface` Python environment, and execute: 
+### Step 1: Install Necessary Updates and Packages
 ```bash
+sudo apt-get update -y
+sudo apt-get upgrade -y
+sudo apt-get install -y zip unzip curl wget git
+sudo apt install -y nvidia-driver-550
+```
+
+Reboot the instance after installing the NVIDIA driver.
+```bash
+sudo reboot
+```
+
+### Step 2: Install CUDA Toolkit
+```bash
+sudo apt install -y nvidia-cuda-toolkit
+sudo apt-get install -y nvidia-container-toolkit
+```
+
+If facing error “Unable to locate package nvidia-container-toolkit”:
+- Do this (if you are using Ubuntu 20.04):
+```bash
+distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -
+curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | sudo tee /etc/apt/sources.list.d/nvidia-docker.list
+sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
+```
+
+Else this (if you are using Ubuntu 22.04):
+```bash
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit 
+```
+
+### Step 3: Install Docker
+```bash
+sudo apt-get install -y docker.io
+sudo systemctl start docker
+sudo systemctl enable docker
+sudo usermod -aG docker $USER
+```
+
+Reboot the instance after adding the user to the docker group.
+```bash
+sudo reboot
+```
+
+### Step 4: Clone the Repository
+```bash
+git clone https://github.com/yerfor/GeneFacePlusPlus.git
+cd GeneFacePlusPlus
+```
+
+### Step 5: Build the Docker Image
+```bash
+docker pull nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
+docker build -t ubuntu22.04-cu118-conda:torch2.0.1-py39 -f Dockerfile.cu118.torch2.0.1.py39   .
+docker build -t genfaceplus:latest -f Dockerfile.genface .
+```
+
+### Step 6: Prepare the Files
+**Download 3DMM Files into deep_3drecib/BFM**
+```bash
+cd deep_3drecon/BFM
+python3 download_bfm.py
+cd ../../
+```
+
+**Download the Pre-processed Dataset of May**
+```bash
+mkdir -p data/binary/videos/May/
+cd data/binary/videos/May/
+gdown 16fNJz5MbOMqHYHxcK_nPP4EPBXWjugR0
+cd ../../../../
+```
+
+**Download the Pre-trained Audio2Motion (Generic) and Motion2Video (For May) Weights**
+```bash
+mkdir -p checkpoints
+cd checkpoints
+mkdir audio2motion_vae
+cd audio2motion_vae
+gdown 1Qg5V-1-IyEgAOxb2PbBjHpYkizuy6njf
+gdown 1bKY5rn3vcAkv-2m1mui0qr4Fs38jEmy-
+cd ..
+gdown 1O5C1vK4yqguOhgRQ7kmYqa3-E8q5H_65
+unzip motion2video_nerf.zip
+rm motion2video_nerf.zip
+cd ..
+```
+
+
+### Step 7: Start a Docker Container
+```bash
+docker run -it --name geneface -p 7869:7860 --gpus all -v ~/.cache:/root/.cache -v ~/GeneFacePlusPlus:/GeneFacePlusPlus/  genfaceplus:latest /bin/bash
+```
+
+### Step 8: Activate the Inference Environment
+```bash
+source ~/.bashrc
+conda activate pytorch
+cd /GeneFacePlusPlus/
 export PYTHONPATH=./
+export HF_ENDPOINT=https://hf-mirror.com
+```
+
+### Step 9: Run the Inference Script
+```bash
 python inference/genefacepp_infer.py --a2m_ckpt=checkpoints/audio2motion_vae --head_ckpt= --torso_ckpt=checkpoints/motion2video_nerf/may_torso --drv_aud=data/raw/val_wavs/MacronSpeech.wav --out_name=may_demo.mp4
 ```
-Or you can play with our Gradio WebUI: 
+
+### Step 10: Start the Gradio Demo App
 ```bash
-export PYTHONPATH=./
-python inference/app_genefacepp.py --a2m_ckpt=checkpoints/audio2motion_vae --head_ckpt= --torso_ckpt=checkpoints/motion2video_nerf/may_torso
+python inference/app_genefacepp.py --server 0.0.0.0 --a2m_ckpt=checkpoints/audio2motion_vae --head_ckpt= --torso_ckpt=checkpoints/motion2video_nerf/may_torso
 ```
-Or use our provided [Google Colab](https://colab.research.google.com/github/yerfor/GeneFacePlusPlus/blob/main/inference/genefacepp_demo.ipynb) and run all cells in it.
+
+You can access the server at [http://127.0.0.1:7869](http://127.0.0.1:7869)
+Now you can quit the docker container at any time.
+
+### To restart the Docker Container and the Inference Environment
+```bash
+docker start geneface
+docker exec -it geneface /bin/bash
+conda activate pytorch
+cd /GeneFacePlusPlus/
+export PYTHONPATH=./
+export HF_ENDPOINT=https://hf-mirror.com
+```
+
 
 ## Train GeneFace++ with your own videos
-Please refer to details in  `docs/process_data` and `docs/train_and_infer`.
+Suppose a training video is named `VIDEO_ID.mp4`, you can execute the script `prepare_training_data.sh` to finish all the steps in one run. 
+<!-- ```bash
+bash run.sh ${VIDEO_ID}
+``` -->
+```bash
+bash prepare_training_data.sh
+```
 
-Below are answers to frequently asked questions when training GeneFace++ on custom videos:
+- Set `VIDEO_ID` as per the name of your video
+- It should take approximately 1.5 hour to finish all the processing for a 5-minute video <!-- To-Do -->
+- The processed data will be saved in `data/binary/videos/${VIDEO_ID}/`
+- Copy a config folder `egs/datasets/{Video_ID}` following `egs/datasets/Custom`
+    - Make sure to change the ```video_id``` in ```lm3d_radnerf_torso.yaml``` and ```lm3d_radnerf.yaml``` from ```Custom``` to your ```VIDEO_ID```
+    - Make sure to change the ```head_model_dir``` in ```lm3d_radnerf_torso.yaml``` as per your ```VIDEO_ID```
+- Use the command lines below to train the NeRF models
+
+First, train the Head NeRF model:
+```bash
+CUDA_VISIBLE_DEVICES=0 python tasks/run.py --config=egs/datasets/${VIDEO_ID}/lm3d_radnerf_sr.yaml --exp_name=motion2video_nerf/${VIDEO_ID}_head --reset
+```
+
+Then, train the Torso NeRF model:
+```bash
+CUDA_VISIBLE_DEVICES=0 python tasks/run.py --config=egs/datasets/${VIDEO_ID}/lm3d_radnerf_torso_sr.yaml --exp_name=motion2video_nerf/${VIDEO_ID}_torso --hparams=head_model_dir=checkpoints/motion2video_nerf/${VIDEO_ID}_head --reset
+```
+
+
+- The training process will take approximately 10 hours for each person <!-- To-Do -->
+- For details of each step, refer to `docs/process_data` and `docs/train_and_infer`.
 - Please make sure that the head segment occupies a relatively large region in the video (e.g., similar to the provided `May.mp4`). Or you need to hand-crop your training video. [issue](https://github.com/yerfor/GeneFacePlusPlus/issues/30)
 - Make sure that the talking person appears in every frame of the video, otherwise the data preprocessing pipeline may be failed.
-- We only tested our code on Liunx (Ubuntu/CentOS). It is welcome that someone who are willing to share their installation guide on Windows/MacOS.
 
+## Inference with the trained model
+You can run the inference script with the following command:
+```bash
+CUDA_VISIBLE_DEVICES=0  python inference/genefacepp_infer.py --head_ckpt= --torso_ckpt=motion2video_nerf/${VIDEO_ID}_torso --drv_aud=data/raw/val_wavs/MacronSpeech.wav
+```
 
-## ToDo
-- [x] **Release Inference Code of Audio2Motion and Motion2Video.**
-- [x] **Release Pre-trained weights of Audio2Motion and Motion2Video.**
-- [x] **Release Training Code of Motino2Video Renderer.**
-- [x] **Release Gradio Demo.**
-- [x] **Release Google Colab.**
-- [ ] **Release Training Code of Audio2Motion and Post-Net. (Maybe 2024.06.01) **
+* Use ```--debug``` to visualize intermediate steps during inference
 
 ## Citation
-If you found this repo helpful to your work, please consider cite us:
+GeneFace++ Paper:
 ```
-@article{ye2023geneface,
-  title={GeneFace: Generalized and High-Fidelity Audio-Driven 3D Talking Face Synthesis},
-  author={Ye, Zhenhui and Jiang, Ziyue and Ren, Yi and Liu, Jinglin and He, Jinzheng and Zhao, Zhou},
-  journal={arXiv preprint arXiv:2301.13430},
-  year={2023}
-}
 @article{ye2023geneface++,
   title={GeneFace++: Generalized and Stable Real-Time Audio-Driven 3D Talking Face Generation},
   author={Ye, Zhenhui and He, Jinzheng and Jiang, Ziyue and Huang, Rongjie and Huang, Jiawei and Liu, Jinglin and Ren, Yi and Yin, Xiang and Ma, Zejun and Zhao, Zhou},
