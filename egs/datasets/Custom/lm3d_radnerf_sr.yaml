@@ -5,7 +5,7 @@ task_cls: tasks.radnerfs.radnerf_sr.RADNeRFTask
 not_save_modules: ['criterion_lpips', 'dual_disc']
 with_sr: true
 smo_win_size: 3 # larger leads to oversmoothed lip
-lr: 0.0001 # 0.0005
+# lr: 0.0001 # 0.0005
 
 lpips_mode: vgg19_v2 # alex | vgg19_v2 
 lambda_lpips_loss: 0.001 # alex 0.01 | vgg19_v2 0.001
