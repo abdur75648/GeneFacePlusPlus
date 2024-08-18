@@ -70,7 +70,7 @@ cd GeneFacePlusPlus
 ```bash
 docker pull nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
 docker build -t ubuntu22.04-cu118-conda:torch2.0.1-py39 -f Dockerfile.cu118.torch2.0.1.py39   .
-docker build -t genfaceplus:latest -f Dockerfile.genface .
+docker build -t genefaceplus:latest -f Dockerfile.genface .
 ```
 
 ### Step 6: Prepare the Files
@@ -107,7 +107,7 @@ cd ..
 
 ### Step 7: Start a Docker Container
 ```bash
-docker run -it --name geneface -p 7869:7860 --gpus all -v ~/.cache:/root/.cache -v ~/GeneFacePlusPlus:/GeneFacePlusPlus/  genfaceplus:latest /bin/bash
+docker run -it --name geneface -p 7859:7860 --gpus all -v ~/.cache:/root/.cache -v ~/GeneFacePlusPlus:/GeneFacePlusPlus/  genefaceplus:latest /bin/bash
 ```
 
 ### Step 8: Activate the Inference Environment
