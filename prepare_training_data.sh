@@ -5,7 +5,7 @@ set -e
 START_TIME=$(date +%s)
 
 # Assuming video is saved in data/raw/videos/${VIDEO_ID}.mp4
-export VIDEO_ID="AbdurHD"
+export VIDEO_ID="PrasannaHD"
 
 # Step 0: Standardize video resolution to 1024x1024 and FPS to 25
 echo "Step 0.1: Standardizing video resolution and FPS..."

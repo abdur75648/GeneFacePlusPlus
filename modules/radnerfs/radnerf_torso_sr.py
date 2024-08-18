@@ -220,7 +220,7 @@ class RADNeRFTorsowithSR(RADNeRF):
         # first mix torso with background
         torso_bg_color = torso_color * torso_alpha + bg_color * (1 - torso_alpha)
         results['torso_alpha_map'] = torso_alpha
-        results['torso_rgb_map'] = torso_bg_color.reshape([1, 256, 256, 3]).permute(0,3,1,2)
+        results['torso_rgb_map'] = torso_bg_color.reshape([1, 512, 512, 3]).permute(0,3,1,2)
         # then mix the head image with the torso_bg
         image = image + (1 - weights_sum).unsqueeze(-1) * torso_bg_color
         image = image.view(*prefix, 3)
@@ -229,8 +229,8 @@ class RADNeRFTorsowithSR(RADNeRF):
         depth = depth.view(*prefix)
         results['depth_map'] = depth
         results['rgb_map'] = image # head_image if train, else com_image
-        rgb_image = results['rgb_map'].reshape([1, 256, 256, 3]).permute(0,3,1,2)
-        torso_bg_color = torso_bg_color.reshape([1, 256, 256, 3]).permute(0,3,1,2)
+        rgb_image = results['rgb_map'].reshape([1, 512, 512, 3]).permute(0,3,1,2)
+        torso_bg_color = torso_bg_color.reshape([1, 512, 512, 3]).permute(0,3,1,2)
 
         # use SR to upscale
         sr_rgb_image = self.sr_net(rgb_image.clone())

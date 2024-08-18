@@ -147,8 +147,8 @@ class RADNeRFTorsoTask(RADNeRFTask):
             gt_rgb = sample['gt_img'] # todo: try gt_image
             gt_torso_rgb = sample['bg_torso_img'] # todo: try gt_image
             
-            gt_rgb = gt_rgb.reshape([1,256,256,3]).permute(0, 3, 1, 2)
-            gt_torso_rgb = gt_torso_rgb.reshape([1,256,256,3]).permute(0, 3, 1, 2)
+            gt_rgb = gt_rgb.reshape([1,512,512,3]).permute(0, 3, 1, 2)
+            gt_torso_rgb = gt_torso_rgb.reshape([1,512,512,3]).permute(0, 3, 1, 2)
 
             losses_out = {}
 
@@ -163,8 +163,8 @@ class RADNeRFTorsoTask(RADNeRFTask):
             if self.global_step >= hparams['sr_start_iters']:
                 sr_pred_rgb = model_out['sr_rgb_map']
                 sr_pred_torso_rgb = model_out['sr_torso_rgb_map']
-                gt_rgb_512 = sample['gt_img_512'].reshape([1,512,512,3]).permute(0, 3, 1, 2)
-                gt_torso_rgb_512 = sample['bg_torso_img_512'].reshape([1,512,512,3]).permute(0, 3, 1, 2)
+                gt_rgb_512 = sample['gt_img_512'].reshape([1,1024,1024,3]).permute(0, 3, 1, 2)
+                gt_torso_rgb_512 = sample['bg_torso_img_512'].reshape([1,1024,1024,3]).permute(0, 3, 1, 2)
                 losses_out['sr_torso_mse_loss'] = torch.mean((sr_pred_torso_rgb - gt_torso_rgb_512) ** 2) # [B, N, 3] -->  scalar
             
             if self.global_step >= hparams['lpips_start_iters']:
@@ -179,7 +179,7 @@ class RADNeRFTorsoTask(RADNeRFTask):
             # calculate val loss
             if 'gt_img' in sample:
                 gt_rgb = sample['gt_img']
-                gt_rgb = gt_rgb.reshape([1,256,256,3]).permute(0, 3, 1, 2)
+                gt_rgb = gt_rgb.reshape([1,512,512,3]).permute(0, 3, 1, 2)
                 pred_rgb = model_out['rgb_map']
                 model_out['mse_loss'] = torch.mean((pred_rgb - gt_rgb) ** 2) # [B, N, 3] -->  scalar
             return model_out

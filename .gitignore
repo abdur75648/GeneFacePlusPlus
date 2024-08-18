@@ -11,13 +11,14 @@ deep_3drecon/checkpoints/*
 
 egs/datasets/*
 !egs/datasets/AbdurHD/
+!egs/datasets/PrasannaHD/
 !egs/datasets/Custom/
 !egs/datasets/May/
+*.txt
 
-TestResults/
 TestAudios/
 GFPPAbdurTestVideos/
-AbdurHD_results/
+Result_*/
 
 .vscode
 =5.2.0

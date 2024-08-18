@@ -508,7 +508,7 @@ class GeneFace2Infer:
                 writer.append_data(out_imgs[i])
             writer.close()
 
-        cmd = f"ffmpeg -i {tmp_out_name} -i {self.wav16k_name} -y -shortest -c:v libx264 -pix_fmt yuv420p -b:v 2000k -y -v quiet -shortest {inp['out_name']}"
+        cmd = f"ffmpeg -i {tmp_out_name} -i {self.wav16k_name} -y -shortest -c:v libx264 -pix_fmt yuv420p -b:v 4000k -y -v quiet -shortest {inp['out_name']}"
         ret = os.system(cmd)
         if ret == 0:
             print(f"Saved at {inp['out_name']}")
