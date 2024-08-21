@@ -23,10 +23,10 @@ lambda_ambient: # 使用target_ambient_loss后，被弃用
 ambient_loss_mode: mae # mae | mse 
 
 sr_start_iters: 0_0000
-lpips_start_iters: 70_0000
-num_updates: 100_0000
-max_updates: 100_0000
+lpips_start_iters: 20_0000
+num_updates: 500_0000
+max_updates: 500_0000
 num_ckpt_keep: 1
-ckpt_milestone_interval: 50000
+ckpt_milestone_interval: 100000
 add_eye_blink_cond: true # to better control eye blink
 eye_blink_dim: 8

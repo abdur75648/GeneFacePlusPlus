@@ -11,7 +11,7 @@ torso_individual_embedding_dim: 8 # 0 leads to worse image fidelity
 smo_win_size: 3 # larger leads to oversmoothed lip
 
 num_ckpt_keep: 1
-ckpt_milestone_interval: 50000
+ckpt_milestone_interval: 100000
 lpips_mode: vgg19_v2 # alex | vgg19_v2 
 lambda_lpips_loss: 0.001 # alex 0.001 | vgg19_v2 0.0001
 lambda_ambient: 1. 
@@ -21,9 +21,9 @@ lambda_weights_entropy: 1.0e-4 # enlarge from 1e-4 leads to quick converged to 0
 # the cause of NaN is the changed camera convention, the trans_z out of input scale of freqencoder.
 # we change it into lm2ds and worked it out
 sr_start_iters: 0_0000
-lpips_start_iters: 70_0000
-num_updates: 100_0000
-max_updates: 100_0000
+lpips_start_iters: 20_0000
+num_updates: 500_0000
+max_updates: 500_0000
 clip_grad_norm: 0. # 1. in fp16 leads to nan
 add_eye_blink_cond: true # to better control eye blink
 eye_blink_dim: 8
