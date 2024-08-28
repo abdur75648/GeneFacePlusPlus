@@ -8,6 +8,7 @@ from modules.radnerfs.encoders.encoding import get_encoder
 from modules.radnerfs.renderer import NeRFRenderer
 from modules.radnerfs.cond_encoder import AudioNet, AudioAttNet, MLP, HeatMapEncoder, HeatMapAttNet
 from modules.radnerfs.utils import trunc_exp
+from modules.radnerfs.RestoreFormer_SuperResolution import VQVAEGANMultiHeadTransformer
 from modules.eg3ds.models.superresolution import *
 
 
@@ -26,6 +27,21 @@ class Superresolution(torch.nn.Module):
         self.block1 = SynthesisBlock(128, 64, w_dim=self.w_dim, resolution=512,
                 img_channels=3, is_last=True, use_fp16=use_fp16, conv_clamp=(256 if use_fp16 else None), **block_kwargs)
         self.register_buffer('resample_filter', upfirdn2d.setup_filter([1,3,3,1]))
+        self.restore_former = VQVAEGANMultiHeadTransformer(ch_mult=(1, 2), num_res_blocks=1, attn_resolutions=(),z_channels=64, enable_mid=False, ex_multi_scale_num=0)
+        print("Created Super Resolution Module (From RestoreFormer)")
+        print("Loading pretrained model weights...")
+        model_weights = torch.load("checkpoints/restorformer/last.ckpt")
+        state_dict = model_weights['state_dict']
+        new_state_dict = {}
+        for key in state_dict.keys():
+            if 'encoder.norm_out' in key or 'encoder.conv_out' in key or 'decoder.conv_in' in key or 'quant_conv' in key:
+                continue
+            new_key = key.replace('vqvae.', '')
+            new_state_dict[new_key] = state_dict[key]
+        missing_keys, unexpected_keys = self.restore_former.load_state_dict(new_state_dict, strict=False)
+        print(f"Missing keys: {missing_keys}")
+        # print(f"Unexpected keys: {unexpected_keys}")
+        print("Loaded pretrained model weights for Super Resolution Module")
 
     def forward(self, rgb, **block_kwargs):
         x = rgb
@@ -40,6 +56,7 @@ class Superresolution(torch.nn.Module):
 
         x, rgb = self.block0(x, rgb, ws, **block_kwargs)
         x, rgb = self.block1(x, rgb, ws, **block_kwargs)
+        rgb = self.restore_former(rgb)
         return rgb
 
 class RADNeRFwithSR(NeRFRenderer):
@@ -112,6 +129,7 @@ class RADNeRFwithSR(NeRFRenderer):
 
         self.sr_net = Superresolution(channels=3)
         self.lambda_ambient = torch.nn.Parameter(torch.tensor([1.0]), requires_grad=False)
+        print("Total number of trainable parameters: ", sum(p.numel() for p in self.parameters() if p.requires_grad)/1e6, "M")
 
     def on_train_nerf(self):
         self.requires_grad_(True)
