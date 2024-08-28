@@ -9,38 +9,7 @@ from modules.radnerfs.renderer import NeRFRenderer
 from modules.radnerfs.cond_encoder import AudioNet, AudioAttNet, MLP, HeatMapEncoder, HeatMapAttNet
 from modules.radnerfs.utils import trunc_exp
 from modules.eg3ds.models.superresolution import *
-
-
-class Superresolution(torch.nn.Module):
-    def __init__(self, channels=32, img_resolution=512, sr_antialias=True):
-        super().__init__()
-        assert img_resolution == 512
-        block_kwargs = {'channel_base': 32768, 'channel_max': 512, 'fused_modconv_default': 'inference_only'}
-        use_fp16 = True
-        self.sr_antialias = sr_antialias
-        self.input_resolution = 256
-        # w_dim is not necessary, will be mul by 0
-        self.w_dim = 16
-        self.block0 = SynthesisBlockNoUp(channels, 128, w_dim=self.w_dim, resolution=256,
-                img_channels=3, is_last=False, use_fp16=use_fp16, conv_clamp=(256 if use_fp16 else None), **block_kwargs)
-        self.block1 = SynthesisBlock(128, 64, w_dim=self.w_dim, resolution=512,
-                img_channels=3, is_last=True, use_fp16=use_fp16, conv_clamp=(256 if use_fp16 else None), **block_kwargs)
-        self.register_buffer('resample_filter', upfirdn2d.setup_filter([1,3,3,1]))
-
-    def forward(self, rgb, **block_kwargs):
-        x = rgb
-        ws = torch.ones([rgb.shape[0], 14, self.w_dim], dtype=rgb.dtype, device=rgb.device)
-        ws = ws[:, -1:, :].repeat(1, 3, 1)
-
-        if x.shape[-1] < self.input_resolution:
-            x = torch.nn.functional.interpolate(x, size=(self.input_resolution, self.input_resolution),
-                                                  mode='bilinear', align_corners=False, antialias=self.sr_antialias)
-            rgb = torch.nn.functional.interpolate(rgb, size=(self.input_resolution, self.input_resolution),
-                                                  mode='bilinear', align_corners=False, antialias=self.sr_antialias)
-
-        x, rgb = self.block0(x, rgb, ws, **block_kwargs)
-        x, rgb = self.block1(x, rgb, ws, **block_kwargs)
-        return rgb
+from basicsr.archs.rrdbnet_arch import RRDBNet
 
 class RADNeRFwithSR(NeRFRenderer):
     def __init__(self, hparams):
@@ -110,7 +79,14 @@ class RADNeRFwithSR(NeRFRenderer):
         self.color_net = MLP(self.direction_embedding_dim + self.geo_feat_dim + self.individual_embedding_dim, 3, self.hidden_dim_color, self.num_layers_color)
         self.dropout = nn.Dropout(p=hparams['cond_dropout_rate'], inplace=False)
 
-        self.sr_net = Superresolution(channels=3)
+        self.sr_net = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=2, num_grow_ch=32, scale=2)
+        # Loading pretrained model if provided
+        if hparams.get("esr_model_url", None) is not None:
+            print(f"\n\nLoading pretrained ESR model from {hparams['esr_model_url']}\n\n")
+            self.sr_net.load_state_dict(torch.hub.load_state_dict_from_url(hparams["esr_model_url"], map_location='cpu')["params_ema"])
+            print("\n\nPretrained ESR model loaded\n\n")
+        else:
+            print("\n\nNo pretrained ESR model provided\n\n")
         self.lambda_ambient = torch.nn.Parameter(torch.tensor([1.0]), requires_grad=False)
 
     def on_train_nerf(self):

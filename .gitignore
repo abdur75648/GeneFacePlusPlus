@@ -14,6 +14,7 @@ TestAudios/
 GFPPAbdurTestVideos/
 Result_*/
 screen_logs/
+*.txt
 
 .vscode
 =5.2.0
