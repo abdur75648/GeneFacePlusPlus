@@ -384,7 +384,7 @@ class Trainer:
                     for param in group['params']:
                         param.requires_grad = True
 
-            # forward pass
+            # forward pass (For Generator Part of GAN)
             with Timer("forward_training_step", enable=self.debug):
                 with autocast(enabled=self.amp):
                     if self.on_gpu:
@@ -402,7 +402,7 @@ class Trainer:
                     # accumulate loss
                     loss = loss / self.accumulate_grad_batches
                 
-            # backward pass
+            # backward pass (For Generator Part of GAN)
             with Timer("backward_training_step", enable=self.debug):
                 if loss.requires_grad:
                     if self.amp:
@@ -432,7 +432,7 @@ class Trainer:
                         print(f"| WARN: found nan in grad! first nan params: {nan_params_names[0]}; last nan params: {nan_params_names[-1]}.")
                         pass
 
-            # gradient update with accumulated gradients
+            # gradient update with accumulated gradients (For Generator Part of GAN)
             with Timer("optimUpdate_training_step", enable=self.debug):
                 if (self.global_step + 1) % self.accumulate_grad_batches == 0 and not has_nan_grad:
                 # if (self.global_step + 1) % self.accumulate_grad_batches == 0:
@@ -449,6 +449,62 @@ class Trainer:
                         optimizer.step()
                     optimizer.zero_grad()
                     task_ref.on_after_optimization(self.current_epoch, batch_idx, optimizer, opt_idx)
+            
+            if self.global_step > task_ref.criterion_restoration.discriminator_iter_start:
+                # print("Discriminator is training...")
+                # forwards pass (For Discriminator Part of GAN)
+                with Timer("forward_discriminator_training_step", enable=self.debug):
+                    disc_loss = task_ref.criterion_restoration(output['model_out']['restoration_qloss'], output['model_out']['gt_rgb_512'], output['model_out']['restored_rgb_map'], self.global_step, optimizer_idx=1)
+                
+                # backward pass (For Discriminator Part of GAN)
+                with Timer("backward_discriminator_training_step", enable=self.debug):
+                    if disc_loss.requires_grad:
+                        if self.amp:
+                            self.amp_scalar.scale(disc_loss).backward()
+                        else:
+                            disc_loss.backward()
+
+                    # track progress bar metrics
+                    all_log_metrics.append(log_metrics)
+                    all_progress_bar_metrics.append(progress_bar_metrics)
+
+                    if disc_loss is None:
+                        continue
+                
+                # nan grads
+                with Timer("checkNan_discriminator_training_step", enable=self.debug):
+                    has_nan_grad = False
+                    nan_params_names = []
+                    if self.print_nan_grads:
+                        for name, param in task_ref.named_parameters():
+                            if (param.grad is not None) and torch.isnan(param.grad.float()).any():
+                                print("| NaN params: ", name, param, param.grad)
+                                has_nan_grad = True
+                                nan_params_names.append(name)
+                        if has_nan_grad:
+                            # exit(0)
+                            print(f"| WARN: found nan in grad! first nan params: {nan_params_names[0]}; last nan params: {nan_params_names[-1]}.")
+                            pass
+                
+                # gradient update with accumulated gradients (For Discriminator Part of GAN)
+                with Timer("optimUpdate_discriminator_training_step", enable=self.debug):
+                    if (self.global_step + 1) % self.accumulate_grad_batches == 0 and not has_nan_grad:
+                    # if (self.global_step + 1) % self.accumulate_grad_batches == 0:
+                        # Unscales the gradients of optimizer's assigned params in-place
+                        if self.amp:
+                            self.amp_scalar.unscale_(optimizer)
+                        grad_norm_dict = task_ref.on_before_optimization(opt_idx)
+                        if grad_norm_dict is not None:
+                            all_log_metrics[-1].update(grad_norm_dict)
+                        if self.amp:
+                            self.amp_scalar.step(optimizer)
+                            self.amp_scalar.update()
+                        else:
+                            optimizer.step()
+                        optimizer.zero_grad()
+                        task_ref.on_after_optimization(self.current_epoch, batch_idx, optimizer, opt_idx)
+            # else:
+            #     print("Only Generator is training...")
 
         # collapse all metrics into one dict
         all_progress_bar_metrics = {k: v for d in all_progress_bar_metrics for k, v in d.items()}

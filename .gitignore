@@ -14,6 +14,7 @@ TestAudios/
 GFPPAbdurTestVideos/
 Result_*/
 screen_logs/
+checkpoints/restorformer/
 
 .vscode
 =5.2.0

@@ -8,6 +8,7 @@ from modules.radnerfs.encoders.encoding import get_encoder
 from modules.radnerfs.renderer import NeRFRenderer
 from modules.radnerfs.cond_encoder import AudioNet, AudioAttNet, MLP, HeatMapEncoder, HeatMapAttNet
 from modules.radnerfs.utils import trunc_exp
+from modules.RFmodules.vqvae.vqvae_arch import VQVAEGANMultiHeadTransformer
 from modules.eg3ds.models.superresolution import *
 
 
@@ -112,6 +113,24 @@ class RADNeRFwithSR(NeRFRenderer):
 
         self.sr_net = Superresolution(channels=3)
         self.lambda_ambient = torch.nn.Parameter(torch.tensor([1.0]), requires_grad=False)
+        
+        self.restore_former = VQVAEGANMultiHeadTransformer()
+        print("Created Super Resolution Module (From RestoreFormer)")
+        print("Loading pretrained model weights for RestoreFormer Module from checkpoints/restorformer/last.ckpt")
+        model_weights = torch.load("checkpoints/restorformer/last.ckpt")
+        state_dict = model_weights['state_dict']
+        new_state_dict = {}
+        for key in state_dict.keys():
+            new_key = key.replace('vqvae.', '')
+            new_state_dict[new_key] = state_dict[key]
+        missing_keys, unexpected_keys = self.restore_former.load_state_dict(new_state_dict, strict=False)
+        print(f"Missing keys: {missing_keys}")
+        print(f"Unexpected keys: {unexpected_keys}")
+        print("Loaded pretrained model weights for Super Resolution Module")
+        print("Total number of trainable parameters: ", sum(p.numel() for p in self.parameters() if p.requires_grad)/1e6, "M")
+    
+    def get_last_layer(self):
+        return self.restore_former.decoder.conv_out.weight
 
     def on_train_nerf(self):
         self.requires_grad_(True)
@@ -204,7 +223,10 @@ class RADNeRFwithSR(NeRFRenderer):
         results = super().render(rays_o, rays_d, cond, bg_coords, poses, index, dt_gamma, bg_color, perturb, force_all_rays, max_steps, T_thresh, cond_mask, eye_area_percent=eye_area_percent, **kwargs)
         rgb_image = results['rgb_map'].reshape([1, 256, 256, 3]).permute(0,3,1,2)
         sr_rgb_image = self.sr_net(rgb_image.clone())
-        sr_rgb_image = sr_rgb_image.clamp(0,1)
+        restored_rgb_image, restoration_qloss, _, _ = self.restore_former(sr_rgb_image.clone())
+        restored_rgb_image = restored_rgb_image.clamp(0,1)
         results['rgb_map'] = rgb_image
         results['sr_rgb_map'] = sr_rgb_image
+        results['restored_rgb_map'] = restored_rgb_image
+        results['restoration_qloss'] = restoration_qloss
         return results

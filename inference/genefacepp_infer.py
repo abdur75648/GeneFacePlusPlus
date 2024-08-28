@@ -454,6 +454,8 @@ class GeneFace2Infer:
             import imageio
             tmp_out_name = inp['out_name'].replace(".mp4", ".tmp.mp4")
             writer = imageio.get_writer(tmp_out_name, fps = 25, format='FFMPEG', codec='h264')
+            writer_sr = imageio.get_writer(tmp_out_name.replace(".mp4", "_sr.mp4"), fps = 25, format='FFMPEG', codec='h264')
+            writer_restored = imageio.get_writer(tmp_out_name.replace(".mp4", "_restored.mp4"), fps = 25, format='FFMPEG', codec='h264')
 
             with torch.cuda.amp.autocast(enabled=True):
                 # forward neural renderer
@@ -461,16 +463,25 @@ class GeneFace2Infer:
                     model_out = self.secc2video_model.render(rays_o[i], rays_d[i], cond_inp[i], bg_coords, poses[i], index=i, staged=False, bg_color=bg_color, lm68=lm68s[i], perturb=False, force_all_rays=False,
                                     T_thresh=inp['raymarching_end_threshold'], eye_area_percent=eye_area_percent[i],
                                     **hparams)
-                    if self.secc2video_hparams.get('with_sr', False):
-                        pred_rgb = model_out['sr_rgb_map'][0].cpu() # [c, h, w]
-                    else:
-                        pred_rgb = model_out['rgb_map'][0].reshape([512,512,3]).permute(2,0,1).cpu()
+                    # if self.secc2video_hparams.get('with_sr', False):
+                    #     pred_rgb = model_out['sr_rgb_map'][0].cpu() # [c, h, w]
+                    # else:
+                    #     pred_rgb = model_out['rgb_map'][0].cpu()
+                    # print(model_out['rgb_map'][0].shape, model_out['sr_rgb_map'][0].shape, model_out['restored_rgb_map'][0].shape)
+                    pred_rgb = model_out['rgb_map'][0].cpu()
+                    pred_rgb_sr = model_out['sr_rgb_map'][0].cpu()
+                    pred_restored_rgb_map = model_out['restored_rgb_map'][0].cpu()
                     img = (pred_rgb.permute(1,2,0) * 255.).int().cpu().numpy().astype(np.uint8)
                     writer.append_data(img)
+                    img = (pred_rgb_sr.permute(1,2,0) * 255.).int().cpu().numpy().astype(np.uint8)
+                    writer_sr.append_data(img)
+                    img = (pred_restored_rgb_map.permute(1,2,0) * 255.).int().cpu().numpy().astype(np.uint8)
+                    writer_restored.append_data(img)
             writer.close()
-
+            writer_sr.close()
+            writer_restored.close()
         else:
-
+            raise NotImplementedError("Now only support low_memory_usage=True")
             with torch.cuda.amp.autocast(enabled=True):
                 # forward neural renderer
                 for i in tqdm.trange(num_frames, desc="GeneFace++ is rendering... "):
@@ -509,13 +520,20 @@ class GeneFace2Infer:
             writer.close()
 
         cmd = f"ffmpeg -i {tmp_out_name} -i {self.wav16k_name} -y -shortest -c:v libx264 -pix_fmt yuv420p -b:v 2000k -y -v quiet -shortest {inp['out_name']}"
+        cmd_sr = f"ffmpeg -i {tmp_out_name.replace('.mp4', '_sr.mp4')} -i {self.wav16k_name} -y -shortest -c:v libx264 -pix_fmt yuv420p -b:v 2000k -y -v quiet -shortest {inp['out_name'].replace('.mp4', '_sr.mp4')}"
+        cmd_restored = f"ffmpeg -i {tmp_out_name.replace('.mp4', '_restored.mp4')} -i {self.wav16k_name} -y -shortest -c:v libx264 -pix_fmt yuv420p -b:v 2000k -y -v quiet -shortest {inp['out_name'].replace('.mp4', '_restored.mp4')}"
         ret = os.system(cmd)
+        ret_sr = os.system(cmd_sr)
+        ret_restored = os.system(cmd_restored)
         if ret == 0:
             print(f"Saved at {inp['out_name']}")
             os.system(f"rm {self.wav16k_name}")
             os.system(f"rm {tmp_out_name}")
+            os.system(f"rm {tmp_out_name.replace('.mp4', '_sr.mp4')}")
+            os.system(f"rm {tmp_out_name.replace('.mp4', '_restored.mp4')}")
         else:
             raise ValueError(f"error running {cmd}, please check ffmpeg installation, especially check whether it supports libx264!")
+        
 
     @torch.no_grad()
     def forward_system(self, batch, inp):

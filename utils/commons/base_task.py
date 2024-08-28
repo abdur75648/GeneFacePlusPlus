@@ -114,7 +114,7 @@ class BaseTask(nn.Module):
         loss_ret = self._training_step(sample, batch_idx, optimizer_idx)
         if loss_ret is None:
             return {'loss': None}
-        total_loss, log_outputs = loss_ret
+        total_loss, log_outputs, model_out = loss_ret
         log_outputs = tensors_to_scalars(log_outputs)
 
         # add to epoch meter
@@ -157,7 +157,8 @@ class BaseTask(nn.Module):
         return {
             'loss': total_loss,
             'progress_bar': progress_bar_log,
-            'tb_log': tb_log
+            'tb_log': tb_log,
+            'model_out': model_out
         }
 
     def on_before_optimization(self, opt_idx):

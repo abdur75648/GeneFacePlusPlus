@@ -23,8 +23,7 @@ from utils.commons.ckpt_utils import load_ckpt
 from utils.commons.tensor_utils import tensors_to_scalars, convert_to_np, move_to_cuda
 from utils.nn.schedulers import NoneSchedule
 from utils.nn.grad import get_grad_norm
-
-
+from modules.RFmodules.losses.vqperceptual import VQLPIPSWithDiscriminatorWithCompWithIdentity
 
 class FeatureMatchingLoss(nn.Module):
     def __init__(self):
@@ -92,20 +91,38 @@ class RADNeRFTask(BaseTask):
         self.val_dataset = self.dataset_cls(prefix='val', training=False)
 
         self.criterion_lpips = PerceptualLoss()
+        self.criterion_restoration = VQLPIPSWithDiscriminatorWithCompWithIdentity(identity_weight=0.1,disc_start=250000)
         self.finetune_lip_flag = False
+        self.load_from_pretrained_path = "checkpoints/motion2video_nerf/model_ckpt_steps_460000.ckpt"
     
     @property
     def device(self):
         return iter(self.model.parameters()).__next__().device
     
+    def load_pretrained_model(self):
+        print("\n\n\nLoading pretrained model from: ", self.load_from_pretrained_path)
+        state_dict_loaded = torch.load(self.load_from_pretrained_path, map_location=self.device)['state_dict']['model']
+        missing_keys, unexpected_keys = self.model.load_state_dict(state_dict_loaded, strict=False)
+        print("Missing keys: ", len(missing_keys))
+        print("Unexpected keys: ", len(unexpected_keys))
+        num_success = 0
+        for k in state_dict_loaded.keys():
+            if k in self.model.state_dict().keys():
+                num_success += 1
+        print("Number of keys successfully matched: ", num_success)
+    
     def build_model(self):
         self.model = RADNeRFwithSR(hparams)
+        for name, param in self.model.restore_former.named_parameters():
+            param.requires_grad = False
+        for name, param in self.model.restore_former.named_parameters():
+            if ('decoder.conv_in' in name) or ('decoder.mid.' in name) or ('decoder.up.5.' in name) or ('decoder.norm_out' in name) or ('decoder.conv_out' in name):
+                param.requires_grad = True
         self.embedders_params = []
         self.embedders_params += [p for k, p in self.model.named_parameters() if p.requires_grad and 'position_embedder' in k]
         self.embedders_params += [p for k, p in self.model.named_parameters() if p.requires_grad and 'ambient_embedder' in k]
         self.network_params = [p for k, p in self.model.named_parameters() if (p.requires_grad and 'position_embedder' not in k and 'ambient_embedder' not in k and 'cond_att_net' not in k)]
         self.att_net_params = [p for k, p in self.model.named_parameters() if p.requires_grad and 'cond_att_net' in k]
-        # sr_net also belongs to the newtwork_params
                 
         self.model.conds = self.train_dataset.conds
         self.model.mark_untrained_grid(self.train_dataset.poses, self.train_dataset.intrinsics)
@@ -121,6 +138,14 @@ class RADNeRFTask(BaseTask):
             pretrained_eg3d_ckpt_path = 'checkpoints/geneface2_ckpts/eg3d_baseline_run2'
             load_ckpt(self.dual_disc, pretrained_eg3d_ckpt_path, strict=True, model_name='disc')
             self.dual_feature_matching_loss_fn = FeatureMatchingLoss()
+        
+        print("Model is built successfully!")
+        if self.load_from_pretrained_path is not None:
+            self.load_pretrained_model()
+            print("Pretrained model is loaded successfully!")
+        else:
+            print("No pretrained model is loaded!")
+        
         return self.model
    
     def build_optimizer(self, model):
@@ -196,6 +221,8 @@ class RADNeRFTask(BaseTask):
         H, W = sample['H'], sample['W']
         cond_mask = sample.get('cond_mask', None)
         cond_inp = cond_wins
+        
+        # print("\n\n Current self.global_step is: ", self.global_step, "\n\n")
 
         if not infer:
             # training phase, sample rays from the image
@@ -243,6 +270,11 @@ class RADNeRFTask(BaseTask):
                         real_logit = self.dual_disc(real_image, camera, feature_maps=real_feature_maps)
                 losses_out['dual_feature_matching_loss'] =  self.dual_feature_matching_loss_fn(fake_feature_maps, real_feature_maps)
             
+            if self.global_step >= self.criterion_restoration.discriminator_iter_start:
+                restoration_total_loss, restoration_loss_components_dict = self.criterion_restoration(model_out['restoration_qloss'], gt_rgb_512, model_out['restored_rgb_map'], self.global_step, optimizer_idx=0, last_layer=self.model.get_last_layer())
+                losses_out['restoration_loss'] = restoration_total_loss
+                losses_out.update(restoration_loss_components_dict)
+            
             losses_out['lambda_ambient'] = self.model.lambda_ambient.item()
             return losses_out, model_out
         else:
@@ -272,7 +304,15 @@ class RADNeRFTask(BaseTask):
                 self.model.update_extra_state()
 
         loss_output, model_out = self.run_model(sample)
+        model_out = {k: v for k, v in model_out.items() if k in ['restored_rgb_map', 'restoration_qloss']}
+        # print("Data type of sample['gt_img_512']: ", sample['gt_img_512'].dtype) # torch.float32
+        # print("Data type of restored_rgb_map: ", model_out['restored_rgb_map'].dtype) # torch.float16
+        model_out['restored_rgb_map'] = model_out['restored_rgb_map'].float()
+        # print("Data type of restored_rgb_map: ", model_out['restored_rgb_map'].dtype) # torch.float32
+        model_out['gt_rgb_512'] = sample['gt_img_512']
+        
         loss_weights = {
+            'restoration_loss': 1.0,
             'mse_loss': 1.0,
             'lpips_loss': hparams['lambda_lpips_loss'] if self.global_step >= hparams['lpips_start_iters'] else 0,
             'weights_entropy_loss': hparams['lambda_weights_entropy'],
@@ -309,7 +349,7 @@ class RADNeRFTask(BaseTask):
                 "density_grid_info/step_mean_count": self.model.mean_count
             }
             outputs.update(density_grid_info)
-        return total_loss, outputs
+        return total_loss, outputs, model_out
     
     def on_before_optimization(self, opt_idx):
         prefix = f"grad_norm_opt_idx_{opt_idx}"
