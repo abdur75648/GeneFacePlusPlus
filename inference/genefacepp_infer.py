@@ -40,7 +40,7 @@ from modules.radnerfs.utils import get_audio_features, get_rays, get_bg_coords, 
 from modules.radnerfs.radnerf import RADNeRF
 from modules.radnerfs.radnerf_sr import RADNeRFwithSR
 from modules.radnerfs.radnerf_torso import RADNeRFTorso
-from modules.radnerfs.radnerf_torso_sr import RADNeRFTorsowithSR
+
 
 
 face3d_helper = None
@@ -164,13 +164,7 @@ class GeneFace2Infer:
     def load_secc2video(self, head_model_dir, torso_model_dir):
 
         if torso_model_dir != '':
-            set_hparams(f"{os.path.dirname(torso_model_dir) if os.path.isfile(torso_model_dir) else torso_model_dir}/config.yaml")
-            self.secc2video_hparams = copy.deepcopy(hparams)
-            if hparams.get("with_sr"):
-                model = RADNeRFTorsowithSR(hparams)
-            else:
-                model = RADNeRFTorso(hparams)
-            load_ckpt(model, f"{torso_model_dir}", model_name='model', strict=True)
+            raise NotImplementedError("Ok")
         else:
             set_hparams(f"{os.path.dirname(head_model_dir) if os.path.isfile(head_model_dir) else head_model_dir}/config.yaml")
             self.secc2video_hparams = copy.deepcopy(hparams)
