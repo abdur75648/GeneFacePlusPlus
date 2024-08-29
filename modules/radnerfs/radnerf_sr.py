@@ -79,7 +79,7 @@ class RADNeRFwithSR(NeRFRenderer):
         self.color_net = MLP(self.direction_embedding_dim + self.geo_feat_dim + self.individual_embedding_dim, 3, self.hidden_dim_color, self.num_layers_color)
         self.dropout = nn.Dropout(p=hparams['cond_dropout_rate'], inplace=False)
 
-        self.sr_net = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=2, num_grow_ch=32, scale=2)
+        self.sr_net = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=2)
         # Loading pretrained model if provided
         if hparams.get("esr_model_url", None) is not None:
             print(f"\n\nLoading pretrained ESR model from {hparams['esr_model_url']}\n\n")

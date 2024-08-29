@@ -103,7 +103,8 @@ class RADNeRFTask(BaseTask):
         self.embedders_params = []
         self.embedders_params += [p for k, p in self.model.named_parameters() if p.requires_grad and 'position_embedder' in k]
         self.embedders_params += [p for k, p in self.model.named_parameters() if p.requires_grad and 'ambient_embedder' in k]
-        self.network_params = [p for k, p in self.model.named_parameters() if (p.requires_grad and 'position_embedder' not in k and 'ambient_embedder' not in k and 'cond_att_net' not in k)]
+        self.sr_params = [p for k, p in self.model.named_parameters() if p.requires_grad and 'sr_net' in k]
+        self.network_params = [p for k, p in self.model.named_parameters() if (p.requires_grad and 'position_embedder' not in k and 'ambient_embedder' not in k and 'cond_att_net' not in k and 'sr_net' not in k)]
         self.att_net_params = [p for k, p in self.model.named_parameters() if p.requires_grad and 'cond_att_net' in k]
         # sr_net also belongs to the newtwork_params
                 
@@ -129,6 +130,12 @@ class RADNeRFTask(BaseTask):
             lr=hparams['lr'],
             betas=(hparams['optimizer_adam_beta1'], hparams['optimizer_adam_beta2']),
             eps=1e-15)
+        self.optimizer.add_param_group({
+            'params': self.sr_params,
+            'lr': hparams['lr'] * 0.1,
+            'betas': (hparams['optimizer_adam_beta1'], hparams['optimizer_adam_beta2']),
+            'eps': 1e-15
+        })
         self.optimizer.add_param_group({
             'params': self.embedders_params,
             'lr': hparams['lr'] * 10,
