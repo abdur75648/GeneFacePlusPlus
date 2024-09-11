@@ -11,6 +11,12 @@ from modules.radnerfs.utils import trunc_exp
 from modules.eg3ds.models.superresolution import *
 from basicsr.archs.rrdbnet_arch import RRDBNet
 
+# Return error upon calling Superresolution class
+class Superresolution(nn.Module):
+    def __init__(self, hparams):
+        super().__init__()
+        raise NotImplementedError("Superresolution class is not implemented yet")
+
 class RADNeRFwithSR(NeRFRenderer):
     def __init__(self, hparams):
         super().__init__(hparams)
