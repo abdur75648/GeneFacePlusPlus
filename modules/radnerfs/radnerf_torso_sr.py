@@ -217,16 +217,65 @@ class RADNeRFTorsowithSR(RADNeRF):
             torso_alpha[mask] = torso_alpha_mask.float()
             torso_color[mask] = torso_color_mask.float()
             results['deform'] = deform
+        
+        # Print Outputs:
+            # mask:  torch.Size([65536])
+            # N:  1
+            # Mask.any is True
+            # Head Aware
+            # torso_alpha_mask:  torch.Size([65536, 1])
+            # torso_color_mask:  torch.Size([65536, 3])
+            # deform:  torch.Size([65536, 2])
+            # torso_alpha:  torch.Size([65536, 1])
+            # bg_color:  torch.Size([1, 256, 256, 3])
+            # torso_color:  torch.Size([65536, 3])
+        
+        # import os, random
+        # from PIL import Image
+        # img_name_prefix = "zzz_torso_debug_"+''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', k=5))+"/"
+        # os.makedirs(img_name_prefix, exist_ok=True)
+        # mask = mask.view(256, 256)
+        # torso_alpha_img = torso_alpha.view(256, 256)
+        # torso_color_img = torso_color.view(256, 256, 3)
+        # bg_color_img = bg_color.view(256, 256, 3)
+        # img = Image.fromarray((mask.cpu().numpy()*255).astype('uint8')).convert('L')
+        # img.save(f"{img_name_prefix}mask.png")
+        # img = Image.fromarray((torso_alpha_img.cpu().numpy()*255).astype('uint8')).convert('L')
+        # img.save(f"{img_name_prefix}torso_alpha.png")
+        # img = Image.fromarray((torso_color_img.cpu().numpy()*255).astype('uint8')).convert('RGB')
+        # img.save(f"{img_name_prefix}torso_color.png")
+        # img = Image.fromarray((bg_color_img.cpu().numpy()*255).astype('uint8')).convert('RGB')
+        # img.save(f"{img_name_prefix}bg_color.png")
+        # head_image = image.view(256, 256, 3)
+        # img_head_image = Image.fromarray((head_image.cpu().numpy()*255).astype('uint8')).convert('RGB')
+        # img_head_image.save(f"{img_name_prefix}head_image.png")
+        
         # first mix torso with background
         torso_bg_color = torso_color * torso_alpha + bg_color * (1 - torso_alpha)
+        # print("torso_bg_color: ", torso_bg_color.shape) # torch.Size([1, 65536, 3])
+        # img_torso_bg_color = torso_bg_color.view(256, 256, 3)
+        # img_torso_bg_color = Image.fromarray((img_torso_bg_color.cpu().numpy()*255).astype('uint8')).convert('RGB')
+        # img_torso_bg_color.save(f"{img_name_prefix}torso_bg_color.png")
+        
         results['torso_alpha_map'] = torso_alpha
         results['torso_rgb_map'] = torso_bg_color.reshape([1, 256, 256, 3]).permute(0,3,1,2)
+        
         # then mix the head image with the torso_bg
         image = image + (1 - weights_sum).unsqueeze(-1) * torso_bg_color
+        # print("image: ", image.shape) # torch.Size([65536, 3])
+        # image_to_saved = image.view(256, 256, 3)
+        # img_image = Image.fromarray((image_to_saved.cpu().numpy()*255).astype('uint8')).convert('RGB')
+        # img_image.save(f"{img_name_prefix}torso_bg_color_head_image.png") 
+        
         image = image.view(*prefix, 3)
         image = image.clamp(0, 1)
         depth = torch.clamp(depth - nears, min=0) / (fars - nears)
         depth = depth.view(*prefix)
+        print("depth: ", depth.shape) # torch.Size([1, 65536])
+        # img_depth = depth.view(256, 256)
+        # img_depth = Image.fromarray((img_depth.cpu().numpy()*255).astype('uint8')).convert('L')
+        # img_depth.save(f"{img_name_prefix}depth.png")
+        
         results['depth_map'] = depth
         results['rgb_map'] = image # head_image if train, else com_image
         rgb_image = results['rgb_map'].reshape([1, 256, 256, 3]).permute(0,3,1,2)

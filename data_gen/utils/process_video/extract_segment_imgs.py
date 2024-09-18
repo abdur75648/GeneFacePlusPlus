@@ -152,6 +152,14 @@ def inpaint_torso_job(gt_img, segmap):
     torso_part = (segmap[4]).astype(bool) 
     img = gt_img.copy()
     img[head_part] = 0
+    
+    ## Create a random prefix for all the image names
+    # img_name_prefix = ''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', k=5))
+    
+    ## Save the original torso image
+    # img_to_be_saved = (img * 255).astype(np.uint8)
+    # out_img_name = f"{img_name_prefix}_torso_orig.jpg"
+    # cv2.imwrite(out_img_name, img_to_be_saved)
 
     # torso part "vertical" in-painting...
     L = 8 + 1
@@ -184,6 +192,17 @@ def inpaint_torso_job(gt_img, segmap):
         inpaint_torso_mask[tuple(inpaint_torso_coords.T)] = True
     else:
         inpaint_torso_mask = None
+    
+    # torso_img_intermediate = img.copy()
+    # torso_img_intermediate[inpaint_torso_mask] = cv2.GaussianBlur(torso_img_intermediate, (5, 5), cv2.BORDER_DEFAULT)[inpaint_torso_mask]
+    # torso_img_intermediate[~inpaint_torso_mask] = 0
+    # img_name_prefix = ''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', k=5))
+    # out_img_name = f"{img_name_prefix}_torso_intermediate.jpg"
+    # torso_img_intermediate = (torso_img_intermediate * 255).astype(np.uint8)
+    # cv2.imwrite(out_img_name, cv2.cvtColor(torso_img_intermediate[0], cv2.COLOR_RGB2BGR))
+    # img_to_be_saved = (img * 255).astype(np.uint8)
+    # out_img_name = f"{img_name_prefix}_torso_2.jpg"
+    # cv2.imwrite(out_img_name, img_to_be_saved)
     
     # neck part "vertical" in-painting...
     push_down = 4
@@ -219,6 +238,10 @@ def inpaint_torso_job(gt_img, segmap):
     # apply blurring to the inpaint area to avoid vertical-line artifects...
     inpaint_mask = np.zeros_like(img[..., 0]).astype(bool)
     inpaint_mask[tuple(inpaint_neck_coords.T)] = True
+    
+    # img_to_be_saved = (img * 255).astype(np.uint8)
+    # out_img_name = f"{img_name_prefix}_torso_3.jpg"
+    # cv2.imwrite(out_img_name, img_to_be_saved)
 
     blur_img = img.copy()
     blur_img = cv2.GaussianBlur(blur_img, (5, 5), cv2.BORDER_DEFAULT)
