@@ -271,7 +271,7 @@ class RADNeRFTorsowithSR(RADNeRF):
         image = image.clamp(0, 1)
         depth = torch.clamp(depth - nears, min=0) / (fars - nears)
         depth = depth.view(*prefix)
-        print("depth: ", depth.shape) # torch.Size([1, 65536])
+        # print("depth: ", depth.shape) # torch.Size([1, 65536])
         # img_depth = depth.view(256, 256)
         # img_depth = Image.fromarray((img_depth.cpu().numpy()*255).astype('uint8')).convert('L')
         # img_depth.save(f"{img_name_prefix}depth.png")
