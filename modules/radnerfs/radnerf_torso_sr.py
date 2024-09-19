@@ -118,6 +118,13 @@ class RADNeRFTorsowithSR(RADNeRF):
         # cond: [B, 29, 16]
         # bg_coords: [1, N, 2]
         # return: pred_rgb: [B, N, 3]
+        
+        ### For Debugging
+        # import os, random
+        # from PIL import Image
+        # print("N: ", N)
+        # img_name_prefix = "zzz_torso_debug_"+''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', k=5))+"/"
+        # os.makedirs(img_name_prefix, exist_ok=True)
 
         ### run head nerf with no_grad to get the renderred head
         with torch.no_grad():
@@ -176,7 +183,17 @@ class RADNeRFTorsowithSR(RADNeRF):
                     xyzs, dirs, deltas = raymarching.march_rays(n_alive, n_step, rays_alive, rays_t, rays_o, rays_d, self.bound, self.density_bitfield, self.cascade, self.grid_size, nears, fars, 128, perturb if step == 0 else False, dt_gamma, max_steps)
                     sigmas, rgbs, ambient = self(xyzs, dirs, cond_feat, ind_code)
                     sigmas = self.density_scale * sigmas
+                    ### Save image before compositing
+                    # img_before_compositing = image.clone()
+                    # img_before_compositing = img_before_compositing.view(256, 256, 3)
+                    # img_before_compositing = Image.fromarray((img_before_compositing.cpu().numpy()*255).astype('uint8')).convert('RGB')
+                    # img_before_compositing.save(f"{img_name_prefix}img_before_compositing_{step}.png")
                     raymarching.composite_rays(n_alive, n_step, rays_alive, rays_t, sigmas, rgbs, deltas, weights_sum, depth, image, T_thresh)
+                    ### Save image after compositing
+                    # img_after_compositing = image.clone()
+                    # img_after_compositing = img_after_compositing.view(256, 256, 3)
+                    # img_after_compositing = Image.fromarray((img_after_compositing.cpu().numpy()*255).astype('uint8')).convert('RGB')
+                    # img_after_compositing.save(f"{img_name_prefix}img_after_compositing_{step}.png")
                     rays_alive = rays_alive[rays_alive >= 0]
                     step += n_step
             # background
@@ -201,13 +218,31 @@ class RADNeRFTorsowithSR(RADNeRF):
         # masked query of torso
         torso_alpha = torch.zeros([N, 1], device=device)
         torso_color = torch.zeros([N, 3], device=device)
-
+        
+        ### Save initial torso_alpha and torso_color
+        # img_torso_alpha = torso_alpha.view(256, 256)
+        # img_torso_alpha = Image.fromarray((img_torso_alpha.cpu().numpy()*255).astype('uint8')).convert('L')
+        # img_torso_alpha.save(f"{img_name_prefix}torso_alpha_initial.png")
+        # img_torso_color = torso_color.view(256, 256, 3)
+        # img_torso_color = Image.fromarray((img_torso_color.cpu().numpy()*255).astype('uint8')).convert('RGB')
+        # img_torso_color.save(f"{img_name_prefix}torso_color_initial.png")
+        
         # image[weights_sum <= 0.95] = 0
         # weights_sum[weights_sum <= 0.95] = 0
-
+        
         if mask.any():
             if hparams['torso_head_aware']:
                 torso_alpha_mask, torso_color_mask, deform = self.forward_torso(bg_coords[mask], poses, torso_individual_code, image[mask], weights_sum.unsqueeze(-1)[mask], lm68=lm68)
+                # print("torso_alpha_mask initial: ", torso_alpha.shape)
+                # print("torso_color_mask initial: ", torso_color.shape)
+                ### Save initial torso_alpha_mask and torso_color_mask
+                # img_torso_alpha_mask = torso_alpha_mask.view(256, 256)
+                # img_torso_alpha_mask = Image.fromarray((img_torso_alpha_mask.cpu().numpy()*255).astype('uint8')).convert('L')
+                # img_torso_alpha_mask.save(f"{img_name_prefix}torso_alpha_mask.png")
+                # img_torso_color_mask = torso_color_mask.view(256, 256, 3)
+                # img_torso_color_mask = Image.fromarray((img_torso_color_mask.cpu().numpy()*255).astype('uint8')).convert('RGB')
+                # img_torso_color_mask.save(f"{img_name_prefix}torso_color_mask.png")
+                
                 # if random.random() < 0.5:
                     # torso_alpha_mask, torso_color_mask, deform = self.forward_torso(bg_coords[mask], poses, torso_individual_code, image[mask], weights_sum.unsqueeze(-1)[mask])
                 # else:
@@ -220,9 +255,13 @@ class RADNeRFTorsowithSR(RADNeRF):
         
         # Print Outputs:
             # mask:  torch.Size([65536])
-            # N:  1
+            # N:  65536
             # Mask.any is True
             # Head Aware
+            # torso_alpha initial:  torch.Size([65536, 1])
+            # torso_color initial:  torch.Size([65536, 3])
+            # torso_alpha_mask initial:  torch.Size([65536, 1])
+            # torso_color_mask initial:  torch.Size([65536, 3])
             # torso_alpha_mask:  torch.Size([65536, 1])
             # torso_color_mask:  torch.Size([65536, 3])
             # deform:  torch.Size([65536, 2])
@@ -230,10 +269,6 @@ class RADNeRFTorsowithSR(RADNeRF):
             # bg_color:  torch.Size([1, 256, 256, 3])
             # torso_color:  torch.Size([65536, 3])
         
-        # import os, random
-        # from PIL import Image
-        # img_name_prefix = "zzz_torso_debug_"+''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', k=5))+"/"
-        # os.makedirs(img_name_prefix, exist_ok=True)
         # mask = mask.view(256, 256)
         # torso_alpha_img = torso_alpha.view(256, 256)
         # torso_color_img = torso_color.view(256, 256, 3)
@@ -246,6 +281,12 @@ class RADNeRFTorsowithSR(RADNeRF):
         # img.save(f"{img_name_prefix}torso_color.png")
         # img = Image.fromarray((bg_color_img.cpu().numpy()*255).astype('uint8')).convert('RGB')
         # img.save(f"{img_name_prefix}bg_color.png")
+        # deform_1 = deform[:, 0].view(256, 256)
+        # deform_2 = deform[:, 1].view(256, 256)
+        # img = Image.fromarray((deform_1.cpu().numpy()*255).astype('uint8')).convert('L')
+        # img.save(f"{img_name_prefix}deform_1.png")
+        # img = Image.fromarray((deform_2.cpu().numpy()*255).astype('uint8')).convert('L')
+        # img.save(f"{img_name_prefix}deform_2.png")
         # head_image = image.view(256, 256, 3)
         # img_head_image = Image.fromarray((head_image.cpu().numpy()*255).astype('uint8')).convert('RGB')
         # img_head_image.save(f"{img_name_prefix}head_image.png")

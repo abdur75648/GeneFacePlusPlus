@@ -584,6 +584,9 @@ if __name__ == '__main__':
 
 
     args = parser.parse_args()
+    
+    print("[Harcoding] Setting --low_memory_usage to True")
+    args.low_memory_usage = True
 
     inp = {
             'a2m_ckpt': args.a2m_ckpt,

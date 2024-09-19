@@ -386,32 +386,47 @@ class NeRFRenderer(nn.Module):
         if bg_color is None:
             bg_color = 1
         
-        # import random
-        # img_name_prefix = ''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', k=5))
+        # import os,random
+        # from PIL import Image
+        # img_name_prefix = "zzz_head_debug_"+''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', k=5)) + "/"
         # print('img_name_prefix: ', img_name_prefix)
+        # os.makedirs(img_name_prefix, exist_ok=True)
+        
+        ### Save the head image
         # head_image = image.clone()
         # head_image = head_image.view(1, 256, 256, 3).cpu().numpy() # 0 to 1
         # head_image = (head_image * 255).astype(np.uint8) # 0 to 255
         # head_image = head_image[0]
-        # # Save the head image
-        # import cv2
-        # cv2.imwrite(f'debug_images/{img_name_prefix}_head_image.png', head_image)
-        # # Similarly save the bg_color image
+        # head_image = Image.fromarray(head_image).convert('RGB')
+        # head_image.save(img_name_prefix + 'head_image.png')
+        
+        ### Similarly save the bg_color image
         # bg_color_image = bg_color.clone()
         # bg_color_image = bg_color_image.view(1, 256, 256, 3).cpu().numpy()
         # bg_color_image = (bg_color_image * 255).astype(np.uint8)
         # bg_color_image = bg_color_image[0]
-        # cv2.imwrite(f'debug_images/{img_name_prefix}_bg_color_image.png', bg_color_image)
-        # # Similarly save the weights_sum image
+        # bg_color_image = Image.fromarray(bg_color_image).convert('RGB')
+        # bg_color_image.save(img_name_prefix + 'bg_color_image.png')
+        
+        ### Similarly save the weights_sum image
         # weights_sum_image = weights_sum.clone()
         # weights_sum_image = weights_sum_image.view(1, 256, 256).cpu().numpy()
         # weights_sum_image = (weights_sum_image * 255).astype(np.uint8)
         # weights_sum_image = weights_sum_image[0]
-        # cv2.imwrite(f'debug_images/{img_name_prefix}_weights_sum_image.png', weights_sum_image)
+        # weights_sum_image = Image.fromarray(weights_sum_image).convert('L')
+        # weights_sum_image.save(img_name_prefix + 'weights_sum_image.png')
 
         image = image + (1 - weights_sum).unsqueeze(-1) * bg_color
         image = image.view(*prefix, 3)
         image = image.clamp(0, 1)
+        
+        ### Similarly save the combined image
+        # com_image = image.clone()
+        # com_image = com_image.view(1, 256, 256, 3).cpu().numpy()
+        # com_image = (com_image * 255).astype(np.uint8)
+        # com_image = com_image[0]
+        # com_image = Image.fromarray(com_image).convert('RGB')
+        # com_image.save(img_name_prefix + 'com_image.png')
 
         depth = torch.clamp(depth - nears, min=0) / (fars - nears)
         depth = depth.view(*prefix)
