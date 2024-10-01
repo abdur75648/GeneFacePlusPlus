@@ -22,11 +22,11 @@ class Superresolution(torch.nn.Module):
         # w_dim is not necessary, will be mul by 0
         self.w_dim = 16
         self.block0 = SynthesisBlockNoUp(channels, 128, w_dim=self.w_dim, resolution=256,
-                img_channels=3, is_last=False, use_fp16=use_fp16, conv_clamp=(256 if use_fp16 else None), **block_kwargs)
+                img_channels=4, is_last=False, use_fp16=use_fp16, conv_clamp=(256 if use_fp16 else None), **block_kwargs)
         self.block1 = SynthesisBlock(128, 64, w_dim=self.w_dim, resolution=512,
-                img_channels=3, is_last=True, use_fp16=use_fp16, conv_clamp=(256 if use_fp16 else None), **block_kwargs)
+                img_channels=4, is_last=True, use_fp16=use_fp16, conv_clamp=(256 if use_fp16 else None), **block_kwargs)
         self.block2 = SynthesisBlock(64, 32, w_dim=self.w_dim, resolution=1024,
-                img_channels=3, is_last=True, use_fp16=use_fp16, conv_clamp=(256 if use_fp16 else None), **block_kwargs)
+                img_channels=4, is_last=True, use_fp16=use_fp16, conv_clamp=(256 if use_fp16 else None), **block_kwargs)
         self.register_buffer('resample_filter', upfirdn2d.setup_filter([1,3,3,1]))
 
     def forward(self, rgb, **block_kwargs):
@@ -40,9 +40,9 @@ class Superresolution(torch.nn.Module):
             rgb = torch.nn.functional.interpolate(rgb, size=(self.input_resolution, self.input_resolution),
                                                   mode='bilinear', align_corners=False, antialias=self.sr_antialias)
 
-        x, rgb = self.block0(x, rgb, ws, **block_kwargs) # Output rgb is 1,3,256,256
-        x, rgb_512 = self.block1(x, rgb, ws, **block_kwargs) # Output rgb is 1,3,512,512
-        x, rgb_1024 = self.block2(x, rgb_512, ws, **block_kwargs) # Output rgb is 1,3,1024,1024
+        x, rgb = self.block0(x, rgb, ws, **block_kwargs) # Output rgb is 1,4,256,256
+        x, rgb_512 = self.block1(x, rgb, ws, **block_kwargs) # Output rgb is 1,4,512,512
+        x, rgb_1024 = self.block2(x, rgb_512, ws, **block_kwargs) # Output rgb is 1,4,1024,1024
         return rgb_512, rgb_1024
 
 class RADNeRFwithSR(NeRFRenderer):
@@ -113,7 +113,7 @@ class RADNeRFwithSR(NeRFRenderer):
         self.color_net = MLP(self.direction_embedding_dim + self.geo_feat_dim + self.individual_embedding_dim, 3, self.hidden_dim_color, self.num_layers_color)
         self.dropout = nn.Dropout(p=hparams['cond_dropout_rate'], inplace=False)
 
-        self.sr_net = Superresolution(channels=3)
+        self.sr_net = Superresolution(channels=4)
         self.lambda_ambient = torch.nn.Parameter(torch.tensor([1.0]), requires_grad=False)
 
     def on_train_nerf(self):
@@ -204,12 +204,35 @@ class RADNeRFwithSR(NeRFRenderer):
         }
     
     def render(self, rays_o, rays_d, cond, bg_coords, poses, index=0, dt_gamma=0, bg_color=None, perturb=False, force_all_rays=False, max_steps=1024, T_thresh=1e-4, cond_mask=None, eye_area_percent=None, **kwargs):
-        results = super().render(rays_o, rays_d, cond, bg_coords, poses, index, dt_gamma, bg_color, perturb, force_all_rays, max_steps, T_thresh, cond_mask, eye_area_percent=eye_area_percent, **kwargs)
-        rgb_image = results['rgb_map'].reshape([1, 256, 256, 3]).permute(0,3,1,2)
-        sr_rgb_image_2x, sr_rgb_image_4x = self.sr_net(rgb_image.clone()) # 512, 1024
+        """
+            Here we first obtained the rgb_image and alpha_image from the NeRF Renderer at 256 resolution
+            And then we pass the rgb_image to the SuperResolution network to get the 512 and 1024 resolution images
+            We then need to use the alpha_image to get the alpha channel for the 512 and 1024 resolution images
+            Then, apply bg_color to the alpha_image and rgb_image to get the final image using image = (1 - weights_sum) * bg_color + image*weights_sum
+            bg_color is dict with values bg_color_1x, bg_color_2x, bg_color_4x
+        """
+        
+        results = super().render(rays_o, rays_d, cond, bg_coords, poses, index, dt_gamma, perturb, force_all_rays, max_steps, T_thresh, cond_mask, eye_area_percent=eye_area_percent, **kwargs)
+        assert results['rgb_map'].shape == (1, 256, 256, 3), "The shape of rgb_map is : {}".format(results['rgb_map'].shape)
+        assert results['weights_sum'].shape == (1, 256, 256), "The shape of weights_sum is : {}".format(results['weights_sum'].shape)
+        rgb_image = rgb_image.clamp(0,1)
+        rgb_image = results['rgb_map'].reshape([1, 256, 256, 3]).permute(0,3,1,2) # 1, 3, 256, 256
+        alpha_image = results['weights_sum'].reshape([1, 1, 256, 256]) # 1, 1, 256, 256
+        # Concatenate the rgb_image and alpha_image
+        rgb_image = torch.cat([rgb_image, alpha_image], dim=1)
+        ### SuperResolution
+        # Input shape (1,4,256,256)
+        # Output shapes [(1,4,512,512), (1,4,1024,1024)]
+        sr_rgb_image_2x, sr_rgb_image_4x = self.sr_net(rgb_image.clone())
         sr_rgb_image_2x = sr_rgb_image_2x.clamp(0,1)
         sr_rgb_image_4x = sr_rgb_image_4x.clamp(0,1)
-        results['rgb_map'] = rgb_image
-        results['sr_rgb_image_2x'] = sr_rgb_image_2x
-        results['sr_rgb_image_4x'] = sr_rgb_image_4x
+        
+        # Now apply the bg_color according to alpha channel and obtained finel rgb_image, sr_rgb_image_2x, sr_rgb_image_4x
+        rgb_image_1x_final = (1 - alpha_image) * bg_color['bg_color_1x'] + rgb_image * alpha_image
+        sr_rgb_image_2x_final = (1 - sr_rgb_image_2x_final[:,3:4,:,:]) * bg_color['bg_color_2x'] + sr_rgb_image_2x_final[:,0:3,:,:] * sr_rgb_image_2x_final[:,3:4,:,:]
+        sr_rgb_image_4x_final = (1 - sr_rgb_image_4x_final[:,3:4,:,:]) * bg_color['bg_color_4x'] + sr_rgb_image_4x_final[:,0:3,:,:] * sr_rgb_image_4x_final[:,3:4,:,:]
+        
+        results['rgb_image'] = rgb_image_1x_final
+        results['sr_rgb_image_2x'] = sr_rgb_image_2x_final
+        results['sr_rgb_image_4x'] = sr_rgb_image_4x_final
         return results

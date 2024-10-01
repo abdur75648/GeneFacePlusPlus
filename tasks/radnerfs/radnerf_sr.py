@@ -192,7 +192,7 @@ class RADNeRFTask(BaseTask):
         poses = sample['pose'] # [B, 6]
         idx = sample['idx'] # [B]
         eye_area_percent = sample['eye_area_percent'] # [B]
-        bg_color = sample['bg_torso_img'] if 'bg_torso_img' in sample else sample['bg_img'] # treat torso as a part of background
+        bg_color = {'bg_color_1x':sample['bg_torso_img'], 'bg_color_2x':sample['bg_torso_img_512'], 'bg_color_4x':sample['bg_torso_img_1024']}
         H, W = sample['H'], sample['W']
         cond_mask = sample.get('cond_mask', None)
         cond_inp = cond_wins

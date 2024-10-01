@@ -367,6 +367,7 @@ class RADNeRFDataset(torch.utils.data.Dataset):
         sample.update({
             'torso_img': torso_img_512.cuda().float() / 255.,
             'gt_img': gt_img_512.cuda().float() / 255.,
+            'torso_img_1024': torso_img_1024.cuda().float() / 255.,
         })
 
         if hparams.get("with_sr"):
@@ -413,7 +414,7 @@ class RADNeRFDataset(torch.utils.data.Dataset):
 
         sample['cond_mask'] = face_mask.reshape([-1,])
 
-        # bg_torso_img_1024 = sample['torso_img_1024']
+        bg_torso_img_1024 = sample['torso_img_1024']
         bg_torso_img_512 = sample['torso_img']
         bg_torso_img = bg_torso_img_512
         # gt_img_1024 = sample['gt_img_1024'].view(1, -1, 3)
@@ -431,13 +432,13 @@ class RADNeRFDataset(torch.utils.data.Dataset):
         bg_img = self.bg_img.view(1, -1, 3)
         
         # # 512
-        # bg_torso_img_512 = bg_torso_img_512[..., :3] * bg_torso_img_512[..., 3:] + self.bg_img_512 * (1 - bg_torso_img_512[..., 3:])
-        # bg_torso_img_512 = bg_torso_img_512.view(1, -1, 3) # treat torso as a part of background
+        bg_torso_img_512 = bg_torso_img_512[..., :3] * bg_torso_img_512[..., 3:] + self.bg_img_512 * (1 - bg_torso_img_512[..., 3:])
+        bg_torso_img_512 = bg_torso_img_512.view(1, -1, 3) # treat torso as a part of background
         # bg_img_512 = self.bg_img_512.view(1, -1, 3)
         
         # # 1024
-        # bg_torso_img_1024 = bg_torso_img_1024[..., :3] * bg_torso_img_1024[..., 3:] + self.bg_img_1024 * (1 - bg_torso_img_1024[..., 3:])
-        # bg_torso_img_1024 = bg_torso_img_1024.view(1, -1, 3) # treat torso as a part of background
+        bg_torso_img_1024 = bg_torso_img_1024[..., :3] * bg_torso_img_1024[..., 3:] + self.bg_img_1024 * (1 - bg_torso_img_1024[..., 3:])
+        bg_torso_img_1024 = bg_torso_img_1024.view(1, -1, 3) # treat torso as a part of background
         # bg_img_1024 = self.bg_img_1024.view(1, -1, 3)
         
         ### Debug
@@ -473,9 +474,8 @@ class RADNeRFDataset(torch.utils.data.Dataset):
             # sample['gt_img'] = sample['gt_img'].reshape([1,-1,C])
         sample['bg_img'] = bg_img
         sample['bg_torso_img'] = bg_torso_img
-        sample['bg_torso_img_512'] = bg_torso_img_512 # Not Needed
-        
-        # sample['bg_torso_img_1024'] = bg_torso_img_1024
+        sample['bg_torso_img_512'] = bg_torso_img_512
+        sample['bg_torso_img_1024'] = bg_torso_img_1024
         # sample['bg_img_512'] = bg_img_512
         # sample['bg_img_1024'] = bg_img_1024
 

@@ -283,7 +283,8 @@ class NeRFRenderer(nn.Module):
             self.mean_count = int(self.step_counter[:total_step, 0].sum().item() / total_step)
         self.local_step = 0
 
-    def render(self, rays_o, rays_d, cond, bg_coords, poses, index=0, dt_gamma=0, bg_color=None, perturb=False, force_all_rays=False, max_steps=1024, T_thresh=1e-4, cond_mask=None,eye_area_percent=None,**kwargs):
+    # def render(self, rays_o, rays_d, cond, bg_coords, poses, index=0, dt_gamma=0, bg_color=None, perturb=False, force_all_rays=False, max_steps=1024, T_thresh=1e-4, cond_mask=None,eye_area_percent=None,**kwargs):
+    def render(self, rays_o, rays_d, cond, bg_coords, poses, index=0, dt_gamma=0, perturb=False, force_all_rays=False, max_steps=1024, T_thresh=1e-4, cond_mask=None,eye_area_percent=None,**kwargs):
         # rays_o, rays_d: [B, N, 3], assumes B == 1
         # cond: [B, 29, 16]
         # bg_coords: [1, N, 2]
@@ -383,8 +384,8 @@ class NeRFRenderer(nn.Module):
 
                 step += n_step
         # background
-        if bg_color is None:
-            bg_color = 1
+        # if bg_color is None:
+        #     bg_color = 1
         
         # import os,random
         # from PIL import Image
@@ -416,9 +417,11 @@ class NeRFRenderer(nn.Module):
         # weights_sum_image = Image.fromarray(weights_sum_image).convert('L')
         # weights_sum_image.save(img_name_prefix + 'weights_sum_image.png')
 
-        image = image + (1 - weights_sum).unsqueeze(-1) * bg_color
-        image = image.view(*prefix, 3)
-        image = image.clamp(0, 1)
+        # image = image + (1 - weights_sum).unsqueeze(-1) * bg_color
+        # image = image.view(*prefix, 3)
+        # image = image.clamp(0, 1)
+        assert image.shape == (1, 256, 256, 3), "The shape of rgb_map is : {}".format(image.shape)
+        assert weights_sum.shape == (1, 256, 256), "The shape of weights_sum is : {}".format(weights_sum.shape)
         
         ### Similarly save the combined image
         # com_image = image.clone()
@@ -432,7 +435,8 @@ class NeRFRenderer(nn.Module):
         depth = depth.view(*prefix)
         
         results['depth_map'] = depth
-        results['rgb_map'] = image # head_image if train, else com_image
+        results['rgb_map'] = image
+        results['weights_sum'] = weights_sum
     
         return results
 
