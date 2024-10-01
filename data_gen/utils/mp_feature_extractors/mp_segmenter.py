@@ -147,6 +147,24 @@ def job_cal_seg_map_for_image(img, segmenter_options=None, segmenter=None):
     out = segmenter_actual.segment(mp_image)
     segmap = out.category_mask.numpy_view().copy() # [H, W]
 
+
+    ### print("segmap: ", segmap.shape) # (512, 512)
+    ### print("segmap unique: ", np.unique(segmap)) # segmap unique:  [0 1 2 3 4 5] [bg, hair, body, face, clothes, others]
+    ### import cv2
+    ### segmap_img1 = (segmap*40).astype(np.uint8)
+    ### cv2.imwrite("segmap1.png", segmap_img1)
+    ### ### Find a mask with all pixels with value 3, find it's upper 2/3rd and correct the body pixels
+    face_mask = segmap == 3
+    y, x = np.where(face_mask)
+    y_min, y_max = y.min(), y.max()
+    x_min, x_max = x.min(), x.max()
+    y_two_third = y_min + 2*(y_max - y_min) // 3
+    body_mask = segmap == 2
+    body_mask[y_two_third:, :] = 0
+    segmap[body_mask] = 3
+    ### segmap_img2 = (segmap*40).astype(np.uint8)
+    ### cv2.imwrite("segmap2.png", segmap_img2)
+
     segmap_mask = scatter_np(segmap[None, None, ...], classSeg=6)[0] # [6, H, W]
     segmap_image = segmap[:, :, None].repeat(3, 2).astype(float)
     segmap_image = (segmap_image * 40).astype(np.uint8)

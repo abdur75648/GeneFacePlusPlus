@@ -194,21 +194,27 @@ class RADNeRFDataset(torch.utils.data.Dataset):
         self.near = hparams['near'] # follow AD-NeRF, we dont use near-far in ds_dict
         self.far = hparams['far'] # follow AD-NeRF, we dont use near-far in ds_dict
         if hparams['infer_bg_img_fname'] == '':
-            # use the default bg_img from dataset
-            bg_img = torch.from_numpy(ds_dict['bg_img']).float() / 255.
+            # 1024
+            bg_img_1024 = torch.from_numpy(ds_dict['bg_img_1024']).float() / 255.
+            self.bg_img_1024 = convert_to_tensor(bg_img_1024).cuda()
+            # 512
+            bg_img = torch.from_numpy(ds_dict['bg_img_512']).float() / 255.
             self.bg_img_512 = convert_to_tensor(bg_img).cuda()
+            # 256
             bg_img = F.interpolate(bg_img.unsqueeze(0).permute(0,3,1,2), mode='bilinear', size=(self.H,self.W), antialias=True).permute(0,2,3,1).reshape([self.H,self.W,3])
-        elif hparams['infer_bg_img_fname'] == 'white': # special
-            bg_img = np.ones((self.H, self.W, 3), dtype=np.float32)
-        elif hparams['infer_bg_img_fname'] == 'black': # special
-            bg_img = np.zeros((self.H, self.W, 3), dtype=np.float32)
-        else: # load from a specificfile
-            bg_img = cv2.imread(hparams['infer_bg_img_fname'], cv2.IMREAD_UNCHANGED) # [H, W, 3]
-            if bg_img.shape[0] != self.H or bg_img.shape[1] != self.W:
-                bg_img = cv2.resize(bg_img, (self.W, self.H), interpolation=cv2.INTER_AREA)
-            bg_img = cv2.cvtColor(bg_img, cv2.COLOR_BGR2RGB)
-            bg_img = bg_img.astype(np.float32) / 255 # [H, W, 3/4]
-        self.bg_img = convert_to_tensor(bg_img).cuda()
+            self.bg_img = convert_to_tensor(bg_img).cuda()
+        # elif hparams['infer_bg_img_fname'] == 'white': # special
+        #     bg_img = np.ones((self.H, self.W, 3), dtype=np.float32)
+        # elif hparams['infer_bg_img_fname'] == 'black': # special
+        #     bg_img = np.zeros((self.H, self.W, 3), dtype=np.float32)
+        # else: # load from a specificfile
+        #     bg_img = cv2.imread(hparams['infer_bg_img_fname'], cv2.IMREAD_UNCHANGED) # [H, W, 3]
+        #     if bg_img.shape[0] != self.H or bg_img.shape[1] != self.W:
+        #         bg_img = cv2.resize(bg_img, (self.W, self.H), interpolation=cv2.INTER_AREA)
+        #     bg_img = cv2.cvtColor(bg_img, cv2.COLOR_BGR2RGB)
+        #     bg_img = bg_img.astype(np.float32) / 255 # [H, W, 3/4]
+        else:
+            raise NotImplementedError()
 
         self.idexp_lm3d_mean = torch.from_numpy(ds_dict['idexp_lm3d_mean']).float()
         self.idexp_lm3d_std = torch.from_numpy(ds_dict['idexp_lm3d_std']).float()
@@ -304,17 +310,26 @@ class RADNeRFDataset(torch.utils.data.Dataset):
         raw_sample = self.samples[idx]
         
         if self.hparams.get("load_imgs_to_memory", True):
+            raise NotImplementedError("Latest version doesn't support this feature!")
             # disable it to save memory usage.
             # for 5500 images, it takes 1 minutes to imread, by contrast, only 1s is needed to index them in memory. 
             # But it reuqires 15GB memory for caching 5500 images at 512x512 resolution.
-            if 'torso_img' not in self.samples[idx].keys():
-                self.samples[idx]['torso_img'] = load_image_as_uint8_tensor(self.samples[idx]['torso_img_fname'])
-                self.samples[idx]['gt_img'] = load_image_as_uint8_tensor(self.samples[idx]['gt_img_fname'])
+            self.samples[idx]['torso_img'] = load_image_as_uint8_tensor(self.samples[idx]['torso_img_fname'])
+            self.samples[idx]['gt_img'] = load_image_as_uint8_tensor(self.samples[idx]['gt_img_fname'])
             torso_img = self.samples[idx]['torso_img']
             gt_img = self.samples[idx]['gt_img']
         else:
-            torso_img = load_image_as_uint8_tensor(self.samples[idx]['torso_img_fname'])
-            gt_img = load_image_as_uint8_tensor(self.samples[idx]['gt_img_fname'])
+            torso_img_512 = load_image_as_uint8_tensor(self.samples[idx]['torso_img_fname_512'])
+            torso_img_1024 = load_image_as_uint8_tensor(self.samples[idx]['torso_img_fname_1024'])
+            gt_img_512 = load_image_as_uint8_tensor(self.samples[idx]['gt_img_fname_512'])
+            gt_img_1024 = load_image_as_uint8_tensor(self.samples[idx]['gt_img_fname_1024'])
+        
+        ### Debug
+        # os.makedirs("Debug_train_data", exist_ok=True)
+        # cv2.imwrite(f"Debug_train_data/torso_img_512.png", cv2.cvtColor(torso_img_512.numpy(), cv2.COLOR_RGB2BGR))
+        # cv2.imwrite(f"Debug_train_data/torso_img_1024.png", cv2.cvtColor(torso_img_1024.numpy(), cv2.COLOR_RGB2BGR))
+        # cv2.imwrite(f"Debug_train_data/gt_img_512.png", cv2.cvtColor(gt_img_512.numpy(), cv2.COLOR_RGB2BGR))
+        # cv2.imwrite(f"Debug_train_data/gt_img_1024.png", cv2.cvtColor(gt_img_1024.numpy(), cv2.COLOR_RGB2BGR))
 
         sample = {
             'H': self.H,
@@ -334,8 +349,9 @@ class RADNeRFDataset(torch.utils.data.Dataset):
         # sample['camera'] = torch.cat([c2w.reshape([16,]), eg3d_dummy_intrinsic.reshape([9,])]).reshape([1, 25])
         sample['camera'] = self.eg3d_cameras[idx].unsqueeze(0)
         
-        sample['gt_img_512'] = gt_img.cuda().unsqueeze(0).permute(0, 3, 1, 2) / 255. # b,c,h,w
-
+        sample['gt_img_512'] = gt_img_512.cuda().unsqueeze(0).permute(0, 3, 1, 2) / 255. # b,c,h,w
+        sample['gt_img_1024'] = gt_img_1024.cuda().unsqueeze(0).permute(0, 3, 1, 2) / 255. # b,c,h,w
+ 
         sample['cond_wins'] = get_audio_features(self.conds, att_mode=2, index=idx)
         sample['cond_wins_prev'] = get_audio_features(self.conds, att_mode=2, index=max(idx-1, 0))
         sample['cond_wins_next'] = get_audio_features(self.conds, att_mode=2, index=min(idx+1, len(self)-1))
@@ -349,8 +365,8 @@ class RADNeRFDataset(torch.utils.data.Dataset):
         sample['pose_matrix'] = ngp_pose # [B, 4, 4]
 
         sample.update({
-            'torso_img': torso_img.cuda().float() / 255.,
-            'gt_img': gt_img.cuda().float() / 255.,
+            'torso_img': torso_img_512.cuda().float() / 255.,
+            'gt_img': gt_img_512.cuda().float() / 255.,
         })
 
         if hparams.get("with_sr"):
@@ -397,19 +413,54 @@ class RADNeRFDataset(torch.utils.data.Dataset):
 
         sample['cond_mask'] = face_mask.reshape([-1,])
 
-        bg_torso_img = bg_torso_img_512 = sample['torso_img']
-        gt_img = sample['gt_img']
+        # bg_torso_img_1024 = sample['torso_img_1024']
+        bg_torso_img_512 = sample['torso_img']
+        bg_torso_img = bg_torso_img_512
+        # gt_img_1024 = sample['gt_img_1024'].view(1, -1, 3)
+        gt_img_512 = sample['gt_img'].view(1, -1, 3)
+        gt_img = gt_img_512
         if hparams.get("with_sr"):
             bg_torso_img = F.interpolate(bg_torso_img.cuda().view(1, 512,512, -1).permute(0,3,1,2), size=(self.H,self.W),mode='bilinear', antialias=True).permute(0,2,3,1) # treat torso as a part of background
-            gt_img = F.interpolate(gt_img.view(1, 512,512, 3).permute(0,3,1,2), size=(self.H,self.W),mode='bilinear', antialias=True).permute(0,2,3,1).view(1, -1, 3) # treat torso as a part of background
+            gt_img = F.interpolate(gt_img_512.view(1, 512,512, 3).permute(0,3,1,2), size=(self.H,self.W),mode='bilinear', antialias=True).permute(0,2,3,1).view(1, -1, 3) # treat torso as a part of background
+        sample['torso_img'] = bg_torso_img
+        sample['gt_img'] = gt_img
 
+        # 256
         bg_torso_img = bg_torso_img[..., :3] * bg_torso_img[..., 3:] + self.bg_img * (1 - bg_torso_img[..., 3:])
         bg_torso_img = bg_torso_img.view(1, -1, 3) # treat torso as a part of background
         bg_img = self.bg_img.view(1, -1, 3)
         
-        bg_torso_img_512 = bg_torso_img_512[..., :3] * bg_torso_img_512[..., 3:] + self.bg_img_512 * (1 - bg_torso_img_512[..., 3:])
-        bg_torso_img_512 = bg_torso_img_512.view(1, -1, 3) # treat torso as a part of background
-
+        # # 512
+        # bg_torso_img_512 = bg_torso_img_512[..., :3] * bg_torso_img_512[..., 3:] + self.bg_img_512 * (1 - bg_torso_img_512[..., 3:])
+        # bg_torso_img_512 = bg_torso_img_512.view(1, -1, 3) # treat torso as a part of background
+        # bg_img_512 = self.bg_img_512.view(1, -1, 3)
+        
+        # # 1024
+        # bg_torso_img_1024 = bg_torso_img_1024[..., :3] * bg_torso_img_1024[..., 3:] + self.bg_img_1024 * (1 - bg_torso_img_1024[..., 3:])
+        # bg_torso_img_1024 = bg_torso_img_1024.view(1, -1, 3) # treat torso as a part of background
+        # bg_img_1024 = self.bg_img_1024.view(1, -1, 3)
+        
+        ### Debug
+        # os.makedirs("Debug_train_data", exist_ok=True)
+        # print("bg_torso_img: ", bg_torso_img.shape)
+        # cv2.imwrite(f"Debug_train_data/xxx_bg_torso_img.png", (cv2.cvtColor(bg_torso_img.cpu().numpy().reshape([self.H,self.W,3]), cv2.COLOR_RGB2BGR)*255).astype(np.uint8))
+        # print("bg_img: ", bg_img.shape)
+        # cv2.imwrite(f"Debug_train_data/xxx_bg_img.png", (cv2.cvtColor(bg_img.cpu().numpy().reshape([self.H,self.W,3]), cv2.COLOR_RGB2BGR)*255).astype(np.uint8))
+        # print("bg_torso_img_512: ", bg_torso_img_512.shape)
+        # cv2.imwrite(f"Debug_train_data/xxx_bg_torso_img_512.png", (cv2.cvtColor(bg_torso_img_512.cpu().numpy().reshape([512,512,3]), cv2.COLOR_RGB2BGR)*255).astype(np.uint8))
+        # print("bg_img_512: ", bg_img_512.shape)
+        # cv2.imwrite(f"Debug_train_data/xxx_bg_img_512.png", (cv2.cvtColor(bg_img_512.cpu().numpy().reshape([512,512,3]), cv2.COLOR_RGB2BGR)*255).astype(np.uint8))
+        # print("bg_torso_img_1024: ", bg_torso_img_1024.shape)
+        # cv2.imwrite(f"Debug_train_data/xxx_bg_torso_img_1024.png", (cv2.cvtColor(bg_torso_img_1024.cpu().numpy().reshape([1024,1024,3]), cv2.COLOR_RGB2BGR)*255).astype(np.uint8))
+        # print("bg_img_1024: ", bg_img_1024.shape)
+        # cv2.imwrite(f"Debug_train_data/xxx_bg_img_1024.png", (cv2.cvtColor(bg_img_1024.cpu().numpy().reshape([1024,1024,3]), cv2.COLOR_RGB2BGR)*255).astype(np.uint8))
+        # print("gt_img: ", gt_img.shape)
+        # cv2.imwrite(f"Debug_train_data/xxx_gt_img.png", (cv2.cvtColor(gt_img.cpu().numpy().reshape([self.H,self.W,3]), cv2.COLOR_RGB2BGR)*255).astype(np.uint8))
+        # print("gt_img_512: ", gt_img_512.shape)
+        # cv2.imwrite(f"Debug_train_data/xxx_gt_img_512.png", (cv2.cvtColor(gt_img_512.cpu().numpy().reshape([512,512,3]), cv2.COLOR_RGB2BGR)*255).astype(np.uint8))
+        # print("gt_img_1024: ", gt_img_1024.shape)
+        # cv2.imwrite(f"Debug_train_data/xxx_gt_img_1024.png", (cv2.cvtColor(gt_img_1024.cpu().numpy().reshape([1024,1024,3]), cv2.COLOR_RGB2BGR)*255).astype(np.uint8))
+        
         C = sample['gt_img'].shape[-1]
 
         # if self.training:
@@ -422,7 +473,11 @@ class RADNeRFDataset(torch.utils.data.Dataset):
             # sample['gt_img'] = sample['gt_img'].reshape([1,-1,C])
         sample['bg_img'] = bg_img
         sample['bg_torso_img'] = bg_torso_img
-        sample['bg_torso_img_512'] = bg_torso_img_512
+        sample['bg_torso_img_512'] = bg_torso_img_512 # Not Needed
+        
+        # sample['bg_torso_img_1024'] = bg_torso_img_1024
+        # sample['bg_img_512'] = bg_img_512
+        # sample['bg_img_1024'] = bg_img_1024
 
         sample['lm68'] = torch.tensor(self.lm68s[idx].reshape([68*2]))
         if self.training:
@@ -442,7 +497,7 @@ class RADNeRFDataset(torch.utils.data.Dataset):
  
 if __name__ == '__main__':
     set_hparams()
-    ds = RADNeRFDataset('trainval', data_dir='data/binary/videos/May')
+    ds = RADNeRFDataset('trainval', data_dir='data/binary/videos/Girish1')
     for i in tqdm.trange(len(ds)):
         ds[i]
     print("done!")

@@ -206,7 +206,7 @@ def inpaint_torso_job(gt_img, segmap):
     
     # neck part "vertical" in-painting...
     push_down = 4
-    L = 48 + push_down + 1
+    L = 64 + push_down + 1
     neck_part = binary_dilation(neck_part, structure=np.array([[0, 1, 0], [0, 1, 0], [0, 1, 0]], dtype=bool), iterations=3)
     neck_coords = np.stack(np.nonzero(neck_part), axis=-1) # [M, 2]
     # lexsort: sort 2D coords first by y then by x, 
@@ -290,14 +290,24 @@ def generate_segment_imgs_job(img_name, segmap, img):
         img_alpha = 255 * np.ones((img.shape[0], img.shape[1], 1), dtype=np.uint8) # alpha
         mask = mask[0][..., None]
         img_alpha[~mask] = 0
-        out_img_name = img_name.replace("/gt_imgs/", f"/{mode}_imgs/").replace(".jpg", ".png")
+        out_img_name = img_name.replace("/gt_imgs/", f"/{mode}_imgs/").replace(".jpg", ".png") # 1024 resolution
+        save_rgb_alpha_image_to_path(out_img, img_alpha, out_img_name)
+        out_img = cv2.resize(out_img, (512, 512), interpolation=cv2.INTER_LINEAR)
+        img_alpha = cv2.resize(img_alpha, (512, 512), interpolation=cv2.INTER_LINEAR)
+        img_alpha = img_alpha[..., None]
+        out_img_name = img_name.replace("_1024/gt_imgs/", f"_512/{mode}_imgs/").replace(".jpg", ".png") # 512 resolution
         save_rgb_alpha_image_to_path(out_img, img_alpha, out_img_name)
     
     inpaint_torso_img, inpaint_torso_img_mask, inpaint_torso_with_bg_img, inpaint_torso_with_bg_img_mask = inpaint_torso_job(img, segmap)
     img_alpha = 255 * np.ones((img.shape[0], img.shape[1], 1), dtype=np.uint8) # alpha
     img_alpha[~inpaint_torso_img_mask[..., None]] = 0
-    out_img_name = img_name.replace("/gt_imgs/", f"/inpaint_torso_imgs/").replace(".jpg", ".png")
+    out_img_name = img_name.replace("/gt_imgs/", f"/inpaint_torso_imgs/").replace(".jpg", ".png") # 1024 resolution
     save_rgb_alpha_image_to_path(inpaint_torso_img, img_alpha, out_img_name)
+    out_img = cv2.resize(inpaint_torso_img, (512, 512), interpolation=cv2.INTER_LINEAR)
+    img_alpha = cv2.resize(img_alpha, (512, 512), interpolation=cv2.INTER_LINEAR)
+    img_alpha = img_alpha[..., None]
+    out_img_name = img_name.replace("_1024/gt_imgs/", f"_512/inpaint_torso_imgs/").replace(".jpg", ".png") # 512 resolution
+    save_rgb_alpha_image_to_path(out_img, img_alpha, out_img_name)
     return segmap_name
     
 def segment_and_generate_for_image_job(img_name, img, segmenter_options=None, segmenter=None, store_in_memory=False):
@@ -336,9 +346,9 @@ def extract_segment_job(
             device = f"cuda:{cuda_id}"
 
         if nerf: # single video
-            raw_img_dir = video_name.replace(".mp4", "/gt_imgs/").replace("/raw/","/processed/")
-        else: # whole dataset
-            raw_img_dir = video_name.replace(".mp4", "").replace("/video/", "/gt_imgs/")
+            raw_img_dir = video_name.replace(".mp4", "_1024/gt_imgs/").replace("/raw/","/processed/")
+        else:
+            raise NotImplementedError()
         if not os.path.exists(raw_img_dir):
             extract_img_job(video_name, raw_img_dir) # use ffmpeg to split video into imgs
         
@@ -385,10 +395,13 @@ def extract_segment_job(
         bg_img = np.zeros_like(refresh_image(img_lst[0]))
         bg_img[..., 1] = 255
         if nerf:
-            out_img_name = video_name.replace("/raw/", "/processed/").replace(".mp4", f"/{bg_prefix_name}.jpg")
+            out_img_name = video_name.replace("/raw/", "/processed/").replace(".mp4", f"_1024/{bg_prefix_name}.jpg")
         else:
-            out_img_name = video_name.replace("/video/", f"/{bg_prefix_name}_img/").replace(".mp4", ".jpg")
-        save_rgb_image_to_path(bg_img, out_img_name)
+            raise NotImplementedError()
+        save_rgb_image_to_path(bg_img, out_img_name) # 1024 resolution
+        bg_img_resized = cv2.resize(bg_img, (512, 512), interpolation=cv2.INTER_LINEAR)
+        out_img_name = out_img_name.replace("_1024/", "_512/")
+        save_rgb_image_to_path(bg_img_resized, out_img_name) # 512 resolution
         print("| Extracted background done.")
         
         print("| Extracting com_imgs...")
@@ -400,7 +413,10 @@ def extract_segment_job(
             bg_part = segmap[0].astype(bool)[..., None].repeat(3,axis=-1)
             com_img[bg_part] = bg_img[bg_part]
             out_img_name = img_name.replace("/gt_imgs/", f"/{com_prefix_name}_imgs/")
-            save_rgb_image_to_path(com_img, out_img_name)
+            save_rgb_image_to_path(com_img, out_img_name) # 1024 resolution
+            com_img = cv2.resize(com_img, (512, 512), interpolation=cv2.INTER_LINEAR)
+            out_img_name = img_name.replace("_1024/gt_imgs/", f"_512/{com_prefix_name}_imgs/")
+            save_rgb_image_to_path(com_img, out_img_name) # 512 resolution
         print("| Extracted com_imgs done.")
         
         return 0

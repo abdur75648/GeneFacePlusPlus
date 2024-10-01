@@ -1,3 +1,4 @@
+from tqdm import tqdm
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
@@ -90,7 +91,7 @@ class MediapipeLandmarker:
         img_landmarker = vision.FaceLandmarker.create_from_options(self.image_mode_options)
         vid_landmarker = vision.FaceLandmarker.create_from_options(self.video_mode_options)
 
-        for i in range(len(frames)):
+        for i in tqdm(range(len(frames))):
             frame = mp.Image(image_format=mp.ImageFormat.SRGB, data=frames[i].astype(np.uint8))
             img_face_landmarker_result = img_landmarker.detect(image=frame)
             vid_face_landmarker_result = vid_landmarker.detect_for_video(image=frame, timestamp_ms=int((1000/fps)*anti_smooth_factor*i))

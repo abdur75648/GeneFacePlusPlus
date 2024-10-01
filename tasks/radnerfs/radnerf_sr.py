@@ -222,17 +222,39 @@ class RADNeRFTask(BaseTask):
                     losses_out['ambient_loss'] = 0
             # loss on img_sr
             if self.global_step >= hparams['sr_start_iters']:
-                sr_pred_rgb = model_out['sr_rgb_map']
+                ### Old Code -> When self.sr_net(rgb_map) returned only 'sr_rgb_map' 512
+                # sr_pred_rgb = model_out['sr_rgb_map']
+                # gt_rgb_512 = sample['gt_img_512']
+                # losses_out['sr_mse_loss'] = torch.mean((sr_pred_rgb - gt_rgb_512) ** 2) # [B, N, 3] -->  scalar
+                
+                ### New Code -> When self.sr_net(rgb_map) returns sr_rgb_image_2x' 512 and 'sr_rgb_image_4x' 1024
+                sr_pred_rgb = model_out['sr_rgb_image_2x']
                 gt_rgb_512 = sample['gt_img_512']
-                losses_out['sr_mse_loss'] = torch.mean((sr_pred_rgb - gt_rgb_512) ** 2) # [B, N, 3] -->  scalar
-
+                sr_pred_rgb_4x = model_out['sr_rgb_image_4x']
+                gt_rgb_1024 = sample['gt_img_1024']
+                sr_mse_loss_2x = torch.mean((sr_pred_rgb - gt_rgb_512) ** 2) # [B, N, 3] -->  scalar
+                sr_mse_loss_4x = torch.mean((sr_pred_rgb_4x - gt_rgb_1024) ** 2) # [B, N, 3] -->  scalar
+                losses_out['sr_mse_loss'] = sr_mse_loss_2x + sr_mse_loss_4x
+            
             if self.global_step >= hparams['lpips_start_iters']:
                 losses_out['lpips_loss'] = self.criterion_lpips(pred_rgb, gt_rgb).mean()
-                losses_out['sr_lpips_loss'] = self.criterion_lpips(sr_pred_rgb, gt_rgb_512).mean()
-                xmin, xmax, ymin, ymax = sample['lip_rect'] # in 256 resolution so need to x2
-                losses_out['sr_lip_lpips_loss'] = self.criterion_lpips(sr_pred_rgb[:,:,xmin*2:xmax*2,ymin*2:ymax*2], gt_rgb_512[:,:,xmin*2:xmax*2,ymin*2:ymax*2]).mean()
+                
+                ### Old Code -> When self.sr_net(rgb_map) returned only 'sr_rgb_map' 512
+                # losses_out['sr_lpips_loss'] = self.criterion_lpips(sr_pred_rgb, gt_rgb_512).mean()
+                # xmin, xmax, ymin, ymax = sample['lip_rect'] # in 256 resolution so need to x2
+                # losses_out['sr_lip_lpips_loss'] = self.criterion_lpips(sr_pred_rgb[:,:,xmin*2:xmax*2,ymin*2:ymax*2], gt_rgb_512[:,:,xmin*2:xmax*2,ymin*2:ymax*2]).mean()
+                
+                ### New Code -> When self.sr_net(rgb_map) returns sr_rgb_image_2x' 512 and 'sr_rgb_image_4x' 1024
+                sr_lpips_loss_2x = self.criterion_lpips(sr_pred_rgb, gt_rgb_512).mean()
+                sr_lpips_loss_4x = self.criterion_lpips(sr_pred_rgb_4x, gt_rgb_1024).mean()
+                losses_out['sr_lpips_loss'] = sr_lpips_loss_2x + sr_lpips_loss_4x
+                xmin, xmax, ymin, ymax = sample['lip_rect']
+                sr_lip_lpips_loss_2x = self.criterion_lpips(sr_pred_rgb[:,:,xmin*2:xmax*2,ymin*2:ymax*2], gt_rgb_512[:,:,xmin*2:xmax*2,ymin*2:ymax*2]).mean()
+                sr_lip_lpips_loss_4x = self.criterion_lpips(sr_pred_rgb_4x[:,:,xmin*4:xmax*4,ymin*4:ymax*4], gt_rgb_1024[:,:,xmin*4:xmax*4,ymin*4:ymax*4]).mean()
+                losses_out['sr_lip_lpips_loss'] = sr_lip_lpips_loss_2x + sr_lip_lpips_loss_4x
 
             if self.global_step >= hparams['lpips_start_iters']  and hparams['lambda_dual_fm'] > 0:
+                raise NotImplementedError("Dual Discriminator is not supported in this version")
                 fake_image = {'image': sr_pred_rgb, 'image_raw': pred_rgb}
                 real_image = {'image': gt_rgb_512, 'image_raw': gt_rgb}
                 camera = sample['camera']
@@ -361,7 +383,13 @@ class RADNeRFTask(BaseTask):
             infer_outputs = self.run_model(sample, infer=True)
             H, W = sample['H'], sample['W']
             img_pred = infer_outputs['rgb_map'].permute(0, 2,3,1).reshape([H, W, 3])
-            img_pred_sr = infer_outputs['sr_rgb_map'].permute(0, 2,3,1).reshape([512, 512, 3])
+            
+            ### Old Code -> When self.sr_net(rgb_map) returned only 'sr_rgb_map' 512
+            # img_pred_sr = infer_outputs['sr_rgb_map'].permute(0, 2,3,1).reshape([512, 512, 3])
+            ### New Code -> When self.sr_net(rgb_map) returns sr_rgb_image_2x' 512 and 'sr_rgb_image_4x' 1024
+            img_pred_sr_2x = infer_outputs['sr_rgb_image_2x'].permute(0, 2,3,1).reshape([512, 512, 3])
+            img_pred_sr_4x = infer_outputs['sr_rgb_image_4x'].permute(0, 2,3,1).reshape([1024, 1024, 3])
+            
             depth_pred = infer_outputs['depth_map'].reshape([H, W])
             
             base_fn = f"frame_{sample['idx']}"
@@ -371,7 +399,8 @@ class RADNeRFTask(BaseTask):
             self.save_rgb_to_fname(img_pred, f"{self.gen_dir}/images/{base_fn}.png")
             self.save_rgb_to_fname(depth_pred, f"{self.gen_dir}/depth/{base_fn}.png")
             base_fn = f"frame_{sample['idx']}_sr"
-            self.save_rgb_to_fname(img_pred_sr, f"{self.gen_dir}/images/{base_fn}.png")
+            self.save_rgb_to_fname(img_pred_sr_2x, f"{self.gen_dir}/images/{base_fn}_2x.png")
+            self.save_rgb_to_fname(img_pred_sr_4x, f"{self.gen_dir}/images/{base_fn}_4x.png")
 
             if hparams['save_gt']:
                 img_gt = sample['gt_img'].reshape([H, W, 3])

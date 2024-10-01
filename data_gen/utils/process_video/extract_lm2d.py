@@ -115,7 +115,7 @@ if __name__ == '__main__':
 
     if ds_name.lower() == 'nerf': # 处理单个视频
         vid_names = [vid_dir]
-        out_names = [video_name.replace("/raw/", "/processed/").replace(".mp4","/lms_2d.npy") for video_name in vid_names]
+        out_names = [video_name.replace("/raw/", "/processed/").replace(".mp4","_512/lms_2d.npy") for video_name in vid_names]
     else: # 处理整个数据集
         if ds_name in ['lrs3_trainval']:
             vid_name_pattern = os.path.join(vid_dir, "*/*.mp4")
@@ -143,6 +143,7 @@ if __name__ == '__main__':
     process_id = args.process_id
     total_process = args.total_process
     if total_process > 1:
+        raise NotImplementedError()
         assert process_id <= total_process -1
         num_samples_per_process = len(vid_names) // total_process
         if process_id == total_process:

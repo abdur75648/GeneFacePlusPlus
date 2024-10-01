@@ -462,7 +462,8 @@ class GeneFace2Infer:
             import imageio
             tmp_out_name = inp['out_name'].replace(".mp4", ".tmp.mp4")
             writer = imageio.get_writer(tmp_out_name, fps = 25, format='FFMPEG', codec='h264')
-            writer_sr = imageio.get_writer(tmp_out_name.replace(".mp4", ".sr.mp4"), fps = 25, format='FFMPEG', codec='h264')
+            writer_sr_2x = imageio.get_writer(tmp_out_name.replace(".mp4", ".sr_2x.mp4"), fps = 25, format='FFMPEG', codec='h264')
+            writer_sr_4x = imageio.get_writer(tmp_out_name.replace(".mp4", ".sr_4x.mp4"), fps = 25, format='FFMPEG', codec='h264')
 
             with torch.cuda.amp.autocast(enabled=True):
                 # forward neural renderer
@@ -487,13 +488,18 @@ class GeneFace2Infer:
                     #     pred_rgb = model_out['rgb_map'][0].reshape([512,512,3]).permute(2,0,1).cpu()
                     # img = (pred_rgb.permute(1,2,0) * 255.).int().cpu().numpy().astype(np.uint8)
                     pred_rgb = model_out['rgb_map'][0].cpu()
-                    pred_rgb_sr = model_out['sr_rgb_map'][0].cpu()
+                    pred_rgb_sr_2x = model_out['sr_rgb_image_2x'][0].cpu()
+                    pred_rgb_sr_4x = model_out['sr_rgb_image_4x'][0].cpu()
                     img = (pred_rgb.permute(1,2,0) * 255.).numpy().astype(np.uint8)
-                    img_sr = (pred_rgb_sr.permute(1,2,0) * 255.).numpy().astype(np.uint8)
+                    img_sr_2x = (pred_rgb_sr_2x.permute(1,2,0) * 255.).numpy().astype(np.uint8)
+                    img_sr_4x = (pred_rgb_sr_4x.permute(1,2,0) * 255.).numpy().astype(np.uint8)
                     writer.append_data(img)
-                    writer_sr.append_data(img_sr)
+                    writer_sr_2x.append_data(img_sr_2x)
+                    writer_sr_4x.append_data(img_sr_4x)
+                    
             writer.close()
-            writer_sr.close()
+            writer_sr_2x.close()
+            writer_sr_4x.close()
 
         else:
             raise NotImplementedError("Not implemented yet.")
@@ -535,10 +541,12 @@ class GeneFace2Infer:
             writer.close()
 
         cmd = f"ffmpeg -i {tmp_out_name} -i {self.wav16k_name} -y -shortest -c:v libx264 -pix_fmt yuv420p -b:v 2000k -y -v quiet -shortest {inp['out_name']}"
-        cmd_sr = f"ffmpeg -i {tmp_out_name.replace('.mp4', '.sr.mp4')} -i {self.wav16k_name} -y -shortest -c:v libx264 -pix_fmt yuv420p -b:v 2000k -y -v quiet -shortest {inp['out_name'].replace('.mp4', '.sr.mp4')}"
+        cmd_sr_2x = f"ffmpeg -i {tmp_out_name.replace('.mp4', '.sr_2x.mp4')} -i {self.wav16k_name} -y -shortest -c:v libx264 -pix_fmt yuv420p -b:v 2000k -y -v quiet -shortest {inp['out_name'].replace('.mp4', '.sr_2x.mp4')}"
+        cmd_sr_4x = f"ffmpeg -i {tmp_out_name.replace('.mp4', '.sr_4x.mp4')} -i {self.wav16k_name} -y -shortest -c:v libx264 -pix_fmt yuv420p -b:v 2000k -y -v quiet -shortest {inp['out_name'].replace('.mp4', '.sr_4x.mp4')}"
         ret = os.system(cmd)
-        ret_sr = os.system(cmd_sr)
-        if ret == 0 and ret_sr == 0:
+        ret_sr_2x = os.system(cmd_sr_2x)
+        ret_sr_4x = os.system(cmd_sr_4x)
+        if ret == 0 and ret_sr_2x == 0 and ret_sr_4x == 0:
             print(f"Saved at {inp['out_name']} and {inp['out_name'].replace('.mp4', '.sr.mp4')}")
             os.system(f"rm {self.wav16k_name}")
             os.system(f"rm {tmp_out_name}")

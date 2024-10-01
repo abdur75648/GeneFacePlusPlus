@@ -23,6 +23,11 @@ from deep_3drecon.deep_3drecon_models.bfm import ParametricFaceModel
 from deep_3drecon.secc_renderer import SECC_Renderer
 from utils.commons.os_utils import multiprocess_glob
 
+if torch.cuda.is_available():
+    print("GPU detected. Proceeding with 3DMM coefficient extraction using Deep3DFaceRecon_pytorch...")
+else:
+    raise ValueError("GPU not detected. Please run this script on a machine with GPU.")
+
 
 face_model = ParametricFaceModel(bfm_folder='deep_3drecon/BFM', 
             camera_distance=10, focal=1015, keypoint_mode='mediapipe')
@@ -155,15 +160,18 @@ def fit_3dmm_for_a_video(
     img_h, img_w = frames.shape[1], frames.shape[2]
     assert img_h == img_w
     num_frames = len(frames)
+    print(f"Processing video {video_name} with {len(frames)} frames and resolution {img_h}x{img_w}...")
 
     if nerf: # single video
         lm_name = video_name.replace("/raw/", "/processed/").replace(".mp4","/lms_2d.npy")
     else:
+        raise NotImplementedError("this function only support single video mode")
         lm_name = video_name.replace("/video/", "/lms_2d/").replace(".mp4", "_lms.npy")
 
     if os.path.exists(lm_name):
         lms = np.load(lm_name)
     else:
+        raise FileNotFoundError(f"lms_2d file not found, try to extract using extract_lm2d.py first... {lm_name}")
         print(f"lms_2d file not found, try to extract it from video... {lm_name}")
         try:
             landmarker = MediapipeLandmarker()
@@ -185,8 +193,10 @@ def fit_3dmm_for_a_video(
         if nerf: # single video
             out_name = video_name.replace("/raw/", "/processed/").replace(".mp4", "/coeff_fit_mp.npy")
         else:
+            raise NotImplementedError("this function only support single video mode")
             out_name = video_name.replace("/video/", "/coeff_fit_mp/").replace(".mp4", "_coeff_fit_mp.npy")
     else:
+        raise NotImplementedError(f"keypoint mode {keypoint_mode} not supported! we only support mediapipe.")
         # lm68 is less accurate than mp
         cal_lan_loss_fn = cal_lan_loss
         if nerf: # single video
@@ -221,8 +231,8 @@ def fit_3dmm_for_a_video(
     optimizer_idexp = torch.optim.Adam([id_para, exp_para], lr=.1)
     optimizer_frame = torch.optim.Adam([euler_angle, trans], lr=.1)
 
-    # 其他参数初始化，先训练euler和trans
-    for _ in range(200):
+    print("="*20, " Part 1/3: Starting initial training of euler and trans parameters... ", "="*20)
+    for epoch in tqdm.tqdm(range(300)):
         if id_mode == 'global':
             proj_geo = face_model.compute_for_landmark_fit(
                 id_para.expand((num_frames, id_dim)), exp_para, euler_angle, trans)
@@ -234,6 +244,9 @@ def fit_3dmm_for_a_video(
         optimizer_frame.zero_grad()
         loss.backward()
         optimizer_frame.step()
+        if epoch % 50 == 0:
+            print(f"epoch {epoch} | loss: {loss_lan.item():.2f}")
+    print("Finished initial training of euler and trans parameters!")
 
     # print(f"loss_lan: {loss_lan.item():.2f}, euler_abs_mean: {euler_angle.abs().mean().item():.4f}, euler_std: {euler_angle.std().item():.4f}, euler_min: {euler_angle.min().item():.4f}, euler_max: {euler_angle.max().item():.4f}")
     # print(f"trans_z_mean: {trans[...,2].mean().item():.4f}, trans_z_std: {trans[...,2].std().item():.4f}, trans_min: {trans[...,2].min().item():.4f}, trans_max: {trans[...,2].max().item():.4f}")
@@ -242,7 +255,8 @@ def fit_3dmm_for_a_video(
         param_group['lr'] = 0.1
 
     # "jointly roughly training id exp euler trans"
-    for _ in range(200):
+    print("="*20, " Part 2/3: Starting joint rough training of id, exp, euler, and trans parameters... ", "="*20)
+    for epoch in tqdm.tqdm(range(300)):
         ret = {}
         if id_mode == 'global':
             proj_geo = face_model.compute_for_landmark_fit(
@@ -267,6 +281,9 @@ def fit_3dmm_for_a_video(
         loss.backward()
         optimizer_idexp.step()
         optimizer_frame.step()
+        if epoch % 50 == 0:
+            print(f"epoch {epoch} | loss: {loss.item():.2f}")
+    print("Finished joint rough training of id, exp, euler, and trans parameters!")
 
     # print(f"loss_lan: {loss_lan.item():.2f}, loss_reg_id: {loss_regid.item():.2f},loss_reg_exp: {loss_regexp.item():.2f},")
     # print(f"euler_abs_mean: {euler_angle.abs().mean().item():.4f}, euler_std: {euler_angle.std().item():.4f}, euler_min: {euler_angle.min().item():.4f}, euler_max: {euler_angle.max().item():.4f}")
@@ -291,7 +308,8 @@ def fit_3dmm_for_a_video(
     
     batch_size = 50
     # "fine fitting the 3DMM in batches"
-    for i in range(int((num_frames-1)/batch_size+1)):
+    print("="*20, " Part 3/3: Starting fine fitting 3DMM in batches... ", "="*20)
+    for i in tqdm.tqdm(range(int((num_frames-1)/batch_size+1))):
         if (i+1)*batch_size > num_frames:
             start_n = num_frames-batch_size
             sel_ids = np.arange(max(num_frames-batch_size,0), num_frames)
@@ -348,7 +366,7 @@ def fit_3dmm_for_a_video(
             loss.backward()
             optimizer_cur_batch.step()
             
-        if debug:
+        if i % 10 == 0:
             print(f"batch {i} | loss_lan: {loss_lan.item():.2f}, loss_reg_id: {loss_regid.item():.2f},loss_reg_exp: {loss_regexp.item():.2f},loss_lap_ldm:{loss_lap.item():.4f}")
             print("|--------" + ', '.join([f"{k}: {v:.4f}" for k,v in log_dict.items()]))
         if id_mode != 'global':
@@ -359,7 +377,7 @@ def fit_3dmm_for_a_video(
 
     coeff_dict = {'id': id_para.detach().cpu().numpy(), 'exp': exp_para.detach().cpu().numpy(),
                 'euler': euler_angle.detach().cpu().numpy(), 'trans': trans.detach().cpu().numpy()}
-    print("finished fitting 3dmm for ", video_name)
+    print("Finished fitting 3dmm for ", video_name, "!")
 
     # filter data by side-view pose    
     # bad_yaw = False
@@ -538,6 +556,7 @@ if __name__ == '__main__':
     face_model.to(torch.device("cuda:0"))
     secc_renderer = SECC_Renderer(512)
     secc_renderer.to("cuda:0")
+    print(f"face_model and secc_renderer created on cuda:0")
     
     process_id = args.process_id
     total_process = args.total_process
@@ -553,6 +572,7 @@ if __name__ == '__main__':
         vid_names = get_todo_vid_names(vid_names)
 
     failed_img_names = []
+    print("Starting the fitting process...")
     for i in tqdm.trange(len(vid_names), desc=f"process {process_id}: fitting 3dmm ..."):
         img_name = vid_names[i]
         try:
