@@ -29,21 +29,26 @@ class Superresolution(torch.nn.Module):
                 img_channels=4, is_last=True, use_fp16=use_fp16, conv_clamp=(256 if use_fp16 else None), **block_kwargs)
         self.register_buffer('resample_filter', upfirdn2d.setup_filter([1,3,3,1]))
 
-    def forward(self, rgb, **block_kwargs):
-        x = rgb
-        ws = torch.ones([rgb.shape[0], 14, self.w_dim], dtype=rgb.dtype, device=rgb.device)
+    def forward(self, rgba, **block_kwargs):
+        x = rgba
+        ws = torch.ones([rgba.shape[0], 14, self.w_dim], dtype=rgba.dtype, device=rgba.device)
         ws = ws[:, -1:, :].repeat(1, 3, 1)
 
         if x.shape[-1] < self.input_resolution:
             x = torch.nn.functional.interpolate(x, size=(self.input_resolution, self.input_resolution),
                                                   mode='bilinear', align_corners=False, antialias=self.sr_antialias)
-            rgb = torch.nn.functional.interpolate(rgb, size=(self.input_resolution, self.input_resolution),
+            rgba = torch.nn.functional.interpolate(rgba, size=(self.input_resolution, self.input_resolution),
                                                   mode='bilinear', align_corners=False, antialias=self.sr_antialias)
 
-        x, rgb = self.block0(x, rgb, ws, **block_kwargs) # Output rgb is 1,4,256,256
-        x, rgb_512 = self.block1(x, rgb, ws, **block_kwargs) # Output rgb is 1,4,512,512
-        x, rgb_1024 = self.block2(x, rgb_512, ws, **block_kwargs) # Output rgb is 1,4,1024,1024
-        return rgb_512, rgb_1024
+        x, rgba = self.block0(x, rgba, ws, **block_kwargs) # Output is 1,4,256,256
+        x, rgba_512 = self.block1(x, rgba, ws, **block_kwargs) # Output is 1,4,512,512
+        x, rgba_1024 = self.block2(x, rgba_512, ws, **block_kwargs) # Output is 1,4,1024,1024
+        
+        # # The alpha channel is sigmoided -> Not required because the alpha channel is already between 0 and 1
+        # rgba_512[:,3:4,:,:] = torch.sigmoid(rgba_512[:,3:4,:,:])
+        # rgba_1024[:,3:4,:,:] = torch.sigmoid(rgba_1024[:,3:4,:,:])
+        
+        return rgba_512, rgba_1024
 
 class RADNeRFwithSR(NeRFRenderer):
     def __init__(self, hparams):

@@ -184,7 +184,7 @@ class GeneFace2Infer:
         self.dataset_cls = RADNeRFDataset # the dataset only provides head pose 
         self.dataset = self.dataset_cls('trainval', training=False)
         
-        torso_img_fnames = [self.dataset.samples[idx]['torso_img_fname'] for idx in range(len(self.dataset.samples))]
+        torso_img_fnames = [self.dataset.samples[idx]['torso_img_fname_512'] for idx in range(len(self.dataset.samples))]
         self.torso_img_fnames = torso_img_fnames
         
         eye_area_percents = torch.tensor(self.dataset.eye_area_percents)

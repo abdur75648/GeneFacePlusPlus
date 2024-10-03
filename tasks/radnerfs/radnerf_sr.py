@@ -234,10 +234,11 @@ class RADNeRFTask(BaseTask):
                 gt_rgb_1024 = sample['gt_img_1024']
                 sr_mse_loss_2x = torch.mean((sr_pred_rgb - gt_rgb_512) ** 2) # [B, N, 3] -->  scalar
                 sr_mse_loss_4x = torch.mean((sr_pred_rgb_4x - gt_rgb_1024) ** 2) # [B, N, 3] -->  scalar
-                losses_out['sr_mse_loss'] = sr_mse_loss_2x + sr_mse_loss_4x
+                losses_out['sr_mse_loss'] = (sr_mse_loss_2x + sr_mse_loss_4x)/2
             
             if self.global_step >= hparams['lpips_start_iters']:
                 losses_out['lpips_loss'] = self.criterion_lpips(pred_rgb, gt_rgb).mean()
+                losses_out['sr_lpips_loss'] = 0
                 
                 ### Old Code -> When self.sr_net(rgb_map) returned only 'sr_rgb_map' 512
                 # losses_out['sr_lpips_loss'] = self.criterion_lpips(sr_pred_rgb, gt_rgb_512).mean()
@@ -245,13 +246,17 @@ class RADNeRFTask(BaseTask):
                 # losses_out['sr_lip_lpips_loss'] = self.criterion_lpips(sr_pred_rgb[:,:,xmin*2:xmax*2,ymin*2:ymax*2], gt_rgb_512[:,:,xmin*2:xmax*2,ymin*2:ymax*2]).mean()
                 
                 ### New Code -> When self.sr_net(rgb_map) returns sr_rgb_image_2x' 512 and 'sr_rgb_image_4x' 1024
-                sr_lpips_loss_2x = self.criterion_lpips(sr_pred_rgb, gt_rgb_512).mean()
-                sr_lpips_loss_4x = self.criterion_lpips(sr_pred_rgb_4x, gt_rgb_1024).mean()
-                losses_out['sr_lpips_loss'] = sr_lpips_loss_2x + sr_lpips_loss_4x
                 xmin, xmax, ymin, ymax = sample['lip_rect']
-                sr_lip_lpips_loss_2x = self.criterion_lpips(sr_pred_rgb[:,:,xmin*2:xmax*2,ymin*2:ymax*2], gt_rgb_512[:,:,xmin*2:xmax*2,ymin*2:ymax*2]).mean()
-                sr_lip_lpips_loss_4x = self.criterion_lpips(sr_pred_rgb_4x[:,:,xmin*4:xmax*4,ymin*4:ymax*4], gt_rgb_1024[:,:,xmin*4:xmax*4,ymin*4:ymax*4]).mean()
-                losses_out['sr_lip_lpips_loss'] = sr_lip_lpips_loss_2x + sr_lip_lpips_loss_4x
+                sr_lip_lpips_loss_1x = self.criterion_lpips(sr_pred_rgb[:,:,ymin:ymax, xmin:xmax], gt_rgb[:,:,ymin:ymax, xmin:xmax]).mean()
+                losses_out['sr_lip_lpips_loss'] = sr_lip_lpips_loss_1x
+                
+                if self.global_step >= hparams['lpips_start_iters'] + 10000:
+                    sr_lpips_loss_2x = self.criterion_lpips(sr_pred_rgb, gt_rgb_512).mean()
+                    sr_lpips_loss_4x = self.criterion_lpips(sr_pred_rgb_4x, gt_rgb_1024).mean()
+                    losses_out['sr_lpips_loss'] = (sr_lpips_loss_2x + sr_lpips_loss_4x)/2
+                    sr_lip_lpips_loss_2x = self.criterion_lpips(sr_pred_rgb[:,:,ymin*2:ymax*2, xmin*2:xmax*2], gt_rgb_512[:,:,ymin*2:ymax*2, xmin*2:xmax*2]).mean()
+                    sr_lip_lpips_loss_4x = self.criterion_lpips(sr_pred_rgb_4x[:,:,ymin*4:ymax*4, xmin*4:xmax*4], gt_rgb_1024[:,:,ymin*4:ymax*4, xmin*4:xmax*4]).mean()
+                    losses_out['sr_lip_lpips_loss'] = (sr_lip_lpips_loss_1x + sr_lip_lpips_loss_2x + sr_lip_lpips_loss_4x)/3
 
             if self.global_step >= hparams['lpips_start_iters']  and hparams['lambda_dual_fm'] > 0:
                 raise NotImplementedError("Dual Discriminator is not supported in this version")
