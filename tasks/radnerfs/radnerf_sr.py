@@ -238,6 +238,7 @@ class RADNeRFTask(BaseTask):
             
             if self.global_step >= hparams['lpips_start_iters']:
                 losses_out['lpips_loss'] = self.criterion_lpips(pred_rgb, gt_rgb).mean()
+                losses_out['sr_lpips_loss'] = 0
                 
                 ### Old Code -> When self.sr_net(rgb_map) returned only 'sr_rgb_map' 512
                 # losses_out['sr_lpips_loss'] = self.criterion_lpips(sr_pred_rgb, gt_rgb_512).mean()
@@ -252,7 +253,7 @@ class RADNeRFTask(BaseTask):
                 if self.global_step >= hparams['lpips_start_iters'] + 10000:
                     sr_lpips_loss_2x = self.criterion_lpips(sr_pred_rgb, gt_rgb_512).mean()
                     sr_lpips_loss_4x = self.criterion_lpips(sr_pred_rgb_4x, gt_rgb_1024).mean()
-                    losses_out['sr_lpips_loss'] = sr_lpips_loss_2x + sr_lpips_loss_4x
+                    losses_out['sr_lpips_loss'] = (sr_lpips_loss_2x + sr_lpips_loss_4x)/2
                     sr_lip_lpips_loss_2x = self.criterion_lpips(sr_pred_rgb[:,:,ymin*2:ymax*2, xmin*2:xmax*2], gt_rgb_512[:,:,ymin*2:ymax*2, xmin*2:xmax*2]).mean()
                     sr_lip_lpips_loss_4x = self.criterion_lpips(sr_pred_rgb_4x[:,:,ymin*4:ymax*4, xmin*4:xmax*4], gt_rgb_1024[:,:,ymin*4:ymax*4, xmin*4:xmax*4]).mean()
                     losses_out['sr_lip_lpips_loss'] = (sr_lip_lpips_loss_1x + sr_lip_lpips_loss_2x + sr_lip_lpips_loss_4x)/3
