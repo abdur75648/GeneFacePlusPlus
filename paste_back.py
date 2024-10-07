@@ -5,9 +5,9 @@ import numpy as np
 from tqdm import tqdm
 
 # Define the file paths
-original_video_path = 'BG_Segmented_Don_Georgevich_3_692_20s.mp4'
-head_neck_video_path = 'headEnhancedResized_InpaintedOrigTorso.mp4'
-output_video_path = 'Don_Final_Output_Video.mp4'
+original_video_path = 'BG_Segmented_VID20240927102042.mp4'
+head_neck_video_path = 'Girish1_head_best.sr_4x.mp4'
+output_video_path = 'Girish1_Final_Output_Video.mp4'
 
 # Open both video files
 original_video = cv2.VideoCapture(original_video_path)
@@ -25,15 +25,23 @@ original_height = int(original_video.get(cv2.CAP_PROP_FRAME_HEIGHT))
 original_fps = original_video.get(cv2.CAP_PROP_FPS)
 
 # Assert that the original video has the same fps as the head+neck video
-assert original_fps == head_fps
+assert original_fps == head_fps, "FPS of the two videos do not match. The original_fps is {} and the head_fps is {}".format(original_fps, head_fps)
 
 # Create a VideoWriter object to save the final output video
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 out = cv2.VideoWriter(output_video_path, fourcc, head_fps, (original_width, original_height))
 
-# Define the position to overlay the head+neck video (centered horizontally, top aligned)
-x_offset = 418
-y_offset = 0
+# Read offset from the file as x1 y1 x2 y2 and resize the head video to the size of x2-x1 y2-y1, then paste it at x1 y1
+crop_file = "data/raw/videos/Girish1.txt"
+
+with open(crop_file, 'r') as f:
+    x1, y1, x2, y2 = map(int, f.readline().strip().split())
+    x_offset = x1
+    y_offset = y1
+    head_width = x2 - x1
+    head_height = y2 - y1
+
+    assert head_width==head_height
 
 # Loop through the frames of both videos
 for i in tqdm(range(head_frame_count)):
@@ -42,6 +50,9 @@ for i in tqdm(range(head_frame_count)):
 
     if not ret1 or not ret2:
         break  # Break the loop if we run out of frames
+    
+    # Resize the head+neck frame to the desired size
+    head_neck_frame = cv2.resize(head_neck_frame, (head_width, head_height))
 
     # Paste the head+neck frame on top of the original frame
     original_frame[y_offset:y_offset + head_height, x_offset:x_offset + head_width] = head_neck_frame

@@ -214,6 +214,7 @@ utils/metrics/shape_predictor_68_face_landmarks.dat
 _torchshow/
 *.png
 *.jpg
+*.txt
 
 legacy/
 *.mrc
