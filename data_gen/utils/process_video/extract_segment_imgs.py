@@ -380,10 +380,16 @@ def extract_segment_job(
             args.append(arg)
             
         if multiprocess_enable:
-            for (_, res) in multiprocess_run_tqdm(segment_and_generate_for_image_job, args=args, num_workers=16, desc='generating segment images in multi-processes...'):
+            print("="*20)
+            print("Multiprocess enabled with num_workers = 2")
+            print("="*20)
+            for (_, res) in multiprocess_run_tqdm(segment_and_generate_for_image_job, args=args, num_workers=2, desc='generating segment images in multi-processes...'):
                 segmap_mask = res
                 segmap_mask_lst.append(segmap_mask)
         else:
+            print("="*20)
+            print("Single Process segment_and_generate_for_image_job!")
+            print("="*20)
             for index in tqdm.tqdm(range(len(img_lst)), desc="generating segment images in single-process..."):
                 segmap_mask = segment_and_generate_for_image_job(*args[index])
                 segmap_mask_lst.append(segmap_mask)

@@ -5,13 +5,15 @@ set -e
 START_TIME=$(date +%s)
 
 # Assuming video is saved in data/raw/videos/${VIDEO_ID}.mp4
-export VIDEO_ID="X"
+export VIDEO_ID="Girish1"
 
-# Step 0: Standardize video resolution to 512x512 and FPS to 25
+# Step 0: Standardize video resolution to 1024x1024 and FPS to 25 and then to 512
 echo "Step 0.1: Standardizing video resolution and FPS..."
-ffmpeg -i data/raw/videos/${VIDEO_ID}.mp4 -vf fps=25,scale=w=512:h=512 -qmin 1 -q:v 1 data/raw/videos/${VIDEO_ID}_512.mp4
+ffmpeg -i data/raw/videos/${VIDEO_ID}.mp4 -vf fps=25,scale=w=1024:h=1024 -qmin 1 -q:v 1 data/raw/videos/${VIDEO_ID}_1024.mp4
 mv data/raw/videos/${VIDEO_ID}.mp4 data/raw/videos/${VIDEO_ID}_to_rm.mp4
 mv data/raw/videos/${VIDEO_ID}_512.mp4 data/raw/videos/${VIDEO_ID}.mp4
+ffmpeg -i data/raw/videos/${VIDEO_ID}.mp4 -vf fps=25,scale=w=512:h=512 -qmin 1 -q:v 1 data/raw/videos/${VIDEO_ID}_512.mp4
+
 
 # Step 0.2: Creating config files
 echo "Step 0.2: Creating config files..."
@@ -29,15 +31,16 @@ sed -i "s/head_model_dir: checkpoints\/Custom\/lm3d_radnerf/head_model_dir: chec
 echo "Step 1: Extracting audio features..."
 export CUDA_VISIBLE_DEVICES=0
 export PYTHONPATH=./
-mkdir -p data/processed/videos/${VIDEO_ID}
-ffmpeg -i data/raw/videos/${VIDEO_ID}.mp4 -f wav -ar 16000 data/processed/videos/${VIDEO_ID}/aud.wav
-python data_gen/utils/process_audio/extract_hubert.py --video_id=${VIDEO_ID} # Will be saved at data/processed/videos/${VIDEO_ID}/aud_hubert.npy
-python data_gen/utils/process_audio/extract_mel_f0.py --video_id=${VIDEO_ID} # Will be saved at data/processed/videos/${VIDEO_ID}/aud_mel_f0.npy
+mkdir -p data/processed/videos/${VIDEO_ID}_512
+ffmpeg -i data/raw/videos/${VIDEO_ID}.mp4 -f wav -ar 16000 data/processed/videos/${VIDEO_ID}_512/aud.wav
+python data_gen/utils/process_audio/extract_hubert.py --video_id=${VIDEO_ID}_512 # Will be saved at data/processed/videos/${VIDEO_ID}/aud_hubert.npy
+python data_gen/utils/process_audio/extract_mel_f0.py --video_id=${VIDEO_ID}_512 # Will be saved at data/processed/videos/${VIDEO_ID}/aud_mel_f0.npy
 
 # Step 2: Extract images
 echo "Step 2: Extracting images..."
-mkdir -p data/processed/videos/${VIDEO_ID}/gt_imgs
-ffmpeg -i data/raw/videos/${VIDEO_ID}.mp4 -vf fps=25,scale=w=512:h=512 -qmin 1 -q:v 1 -start_number 0 data/processed/videos/${VIDEO_ID}/gt_imgs/%08d.jpg
+mkdir -p data/processed/videos/${VIDEO_ID}_1024/gt_imgs
+mkdir -p data/processed/videos/${VIDEO_ID}_512/gt_imgs
+ffmpeg -i data/raw/videos/${VIDEO_ID}.mp4 -qmin 1 -q:v 1 -start_number 0 data/processed/videos/${VIDEO_ID}_1024/gt_imgs/%08d.jpg
 python data_gen/utils/process_video/extract_segment_imgs.py --ds_name=nerf --vid_dir=data/raw/videos/${VIDEO_ID}.mp4
 # Following subfolders are created inside data/processed/videos/${VIDEO_ID}/
 # - bg_imgs, com_imgs, gt_imgs, head_imgs, inpaint_torso_imgs, person_imgs, segmaps, torso_imgs
@@ -45,13 +48,13 @@ echo "Images extracted and saved in subfolders: bg_imgs, com_imgs, gt_imgs, head
 
 # Step 3: Extract 2D landmarks (using MediaPipe) for 3DMM fitting
 echo "Step 3: Extracting 2D landmarks for 3DMM fitting..."
-python data_gen/utils/process_video/extract_lm2d.py --ds_name=nerf --vid_dir=data/raw/videos/${VIDEO_ID}.mp4
+python data_gen/utils/process_video/extract_lm2d.py --ds_name=nerf --vid_dir=data/raw/videos/${VIDEO_ID}_512.mp4 --num_workers 8
 echo "2D landmarks extracted and saved as lms_2d.npy"
 
 # Step 4: Fit 3DMM
 echo "Step 4: Fitting 3DMM..."
 echo "Removed --debug for faster processing: If you want to visualize the fitting process, set --debug flag"
-python data_gen/utils/process_video/fit_3dmm_landmark.py --ds_name=nerf --vid_dir=data/raw/videos/${VIDEO_ID}.mp4 --reset --id_mode=global
+python data_gen/utils/process_video/fit_3dmm_landmark.py --ds_name=nerf --vid_dir=data/raw/videos/${VIDEO_ID}_512.mp4 --reset --id_mode=global
 echo "3DMM fitting done and saved as coeff_fit_mp.npy"
 
 # Step 5: Binarize data
