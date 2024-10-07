@@ -14,6 +14,11 @@ TestAudios/
 GFPPAbdurTestVideos/
 Result_*/
 screen_logs/
+*.txt
+*.mp4
+*.wav
+*.png
+*.jpg
 
 .vscode
 =5.2.0
@@ -209,11 +214,6 @@ process_data_May.sh
 /my_debug.py
 
 utils/metrics/shape_predictor_68_face_landmarks.dat
-*.mp4
-*.wav
-_torchshow/
-*.png
-*.jpg
 
 legacy/
 *.mrc
