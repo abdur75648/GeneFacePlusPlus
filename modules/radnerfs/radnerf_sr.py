@@ -220,22 +220,33 @@ class RADNeRFwithSR(NeRFRenderer):
         results = super().render(rays_o, rays_d, cond, bg_coords, poses, index, dt_gamma, perturb, force_all_rays, max_steps, T_thresh, cond_mask, eye_area_percent=eye_area_percent, **kwargs)
         assert results['rgb_map'].shape == (1, 256, 256, 3), "The shape of rgb_map is : {}".format(results['rgb_map'].shape)
         assert results['weights_sum'].shape == (1, 256, 256), "The shape of weights_sum is : {}".format(results['weights_sum'].shape)
-        rgb_image = rgb_image.clamp(0,1)
-        rgb_image = results['rgb_map'].reshape([1, 256, 256, 3]).permute(0,3,1,2) # 1, 3, 256, 256
-        alpha_image = results['weights_sum'].reshape([1, 1, 256, 256]) # 1, 1, 256, 256
+        rgb_image_orig = results['rgb_map'].permute(0, 3, 1, 2).clamp(0,1) # Convert to shape (1, 3, 256, 256)
+        alpha_image = results['weights_sum'].unsqueeze(1).clamp(0,1)  # Convert to shape (1, 1, 256, 256)
         # Concatenate the rgb_image and alpha_image
-        rgb_image = torch.cat([rgb_image, alpha_image], dim=1)
-        ### SuperResolution
-        # Input shape (1,4,256,256)
-        # Output shapes [(1,4,512,512), (1,4,1024,1024)]
-        sr_rgb_image_2x, sr_rgb_image_4x = self.sr_net(rgb_image.clone())
+        rgb_image = torch.cat([rgb_image_orig, alpha_image], dim=1)
+        ### SuperResolution: (1,4,256,256) --> [(1,4,512,512), (1,4,1024,1024)]
+        sr_rgb_image_2x, sr_rgb_image_4x = self.sr_net(rgb_image)
         sr_rgb_image_2x = sr_rgb_image_2x.clamp(0,1)
         sr_rgb_image_4x = sr_rgb_image_4x.clamp(0,1)
         
-        # Now apply the bg_color according to alpha channel and obtained finel rgb_image, sr_rgb_image_2x, sr_rgb_image_4x
-        rgb_image_1x_final = (1 - alpha_image) * bg_color['bg_color_1x'] + rgb_image * alpha_image
-        sr_rgb_image_2x_final = (1 - sr_rgb_image_2x_final[:,3:4,:,:]) * bg_color['bg_color_2x'] + sr_rgb_image_2x_final[:,0:3,:,:] * sr_rgb_image_2x_final[:,3:4,:,:]
-        sr_rgb_image_4x_final = (1 - sr_rgb_image_4x_final[:,3:4,:,:]) * bg_color['bg_color_4x'] + sr_rgb_image_4x_final[:,0:3,:,:] * sr_rgb_image_4x_final[:,3:4,:,:]
+        # Now apply the bg_color according to alpha channel and obtained finel rgb_image, sr_rgb_image_2x, sr_rgb_image_4x    
+        bg_color_1x = bg_color['bg_color_1x'].view(1, 256, 256, 3).permute(0, 3, 1, 2)
+        bg_color_2x = bg_color['bg_color_2x'].view(1, 512, 512, 3).permute(0, 3, 1, 2)
+        bg_color_4x = bg_color['bg_color_4x'].view(1, 1024, 1024, 3).permute(0, 3, 1, 2)
+        
+        ### print all shapes to debug
+        # print(alpha_image.shape, bg_color_1x.shape, rgb_image_orig.shape) # (1, 1, 256, 256), (1, 3, 256, 256), (1, 3, 256, 256)
+        # print(sr_rgb_image_2x.shape, bg_color_2x.shape) # (1, 4, 512, 512), (1, 3, 512, 512)
+        # print(sr_rgb_image_4x.shape, bg_color_4x.shape) # (1, 4, 1024, 1024), (1, 3, 1024, 1024)
+        
+        rgb_image_1x_final = (1 - alpha_image) * bg_color_1x + rgb_image_orig * alpha_image
+        sr_rgb_image_2x_final = (1 - sr_rgb_image_2x[:,3:4,:,:]) * bg_color_2x + sr_rgb_image_2x[:,0:3,:,:] * sr_rgb_image_2x[:,3:4,:,:]
+        sr_rgb_image_4x_final = (1 - sr_rgb_image_4x[:,3:4,:,:]) * bg_color_4x + sr_rgb_image_4x[:,0:3,:,:] * sr_rgb_image_4x[:,3:4,:,:]
+        
+        ### print all shapes to debug
+        # print(rgb_image_1x_final.shape) # (1, 3, 256, 256)
+        # print(sr_rgb_image_2x_final.shape) # (1, 3, 512, 512)
+        # print(sr_rgb_image_4x_final.shape) # (1, 3, 1024, 1024)
         
         results['rgb_image'] = rgb_image_1x_final
         results['sr_rgb_image_2x'] = sr_rgb_image_2x_final

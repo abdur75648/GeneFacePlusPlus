@@ -4,32 +4,11 @@ import numpy as np
 from tqdm import tqdm
 import mediapipe as mp
 from multiprocessing import Pool
-from mediapipe.tasks.python import vision
-from mediapipe.tasks.python.core.base_options import BaseOptions
+from data_gen.utils.mp_feature_extractors.mp_segmenter import MediapipeSegmenter
 
-class MediapipeSegmenter:
+class PersonBGSegmenter(MediapipeSegmenter):
     def __init__(self):
-        model_path = 'data_gen/utils/mp_feature_extractors/selfie_multiclass_256x256.tflite'
-        if not os.path.exists(model_path):
-            os.makedirs(os.path.dirname(model_path), exist_ok=True)
-            print("Downloading segmenter model from Mediapipe...")
-            os.system(f"wget https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite")
-            os.system(f"mv selfie_multiclass_256x256.tflite {model_path}")
-            print("Download success")
-
-        base_options = BaseOptions(model_asset_path=model_path)
-        self.options = vision.ImageSegmenterOptions(
-            base_options=base_options,
-            running_mode=vision.RunningMode.IMAGE,
-            output_category_mask=True
-        )
-
-    def segment_image(self, img):
-        segmenter = vision.ImageSegmenter.create_from_options(self.options)
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=img)
-        out = segmenter.segment(mp_image)
-        return out.category_mask.numpy_view().copy()
-
+        super().__init__()
     def apply_green_screen(self, img, segmap):
         green_background = np.zeros_like(img)
         green_background[..., 1] = 255  # Set green channel to 255
@@ -89,6 +68,6 @@ def process_video(video_path, output_video_path, seg_model, chunk_size=1000):
 if __name__ == '__main__':
     video_path = "VID20240927102042.mp4"
     output_video_path = "BG_Segmented_VID20240927102042.mp4"
-    seg_model = MediapipeSegmenter()
+    seg_model = PersonBGSegmenter()
 
     process_video(video_path, output_video_path, seg_model)

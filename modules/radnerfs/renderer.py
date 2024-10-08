@@ -420,6 +420,9 @@ class NeRFRenderer(nn.Module):
         # image = image + (1 - weights_sum).unsqueeze(-1) * bg_color
         # image = image.view(*prefix, 3)
         # image = image.clamp(0, 1)
+        
+        image = image.view(256, 256, 3).unsqueeze(0)
+        weights_sum = weights_sum.view(256, 256).unsqueeze(0)
         assert image.shape == (1, 256, 256, 3), "The shape of rgb_map is : {}".format(image.shape)
         assert weights_sum.shape == (1, 256, 256), "The shape of weights_sum is : {}".format(weights_sum.shape)
         

@@ -200,11 +200,11 @@ class RADNeRFTask(BaseTask):
         if not infer:
             # training phase, sample rays from the image
             model_out = self.model.render(rays_o, rays_d, cond_inp, bg_coords, poses, index=idx, staged=False, bg_color=bg_color, perturb=True, force_all_rays=False, cond_mask=cond_mask, eye_area_percent=eye_area_percent, **hparams)
-            pred_rgb = model_out['rgb_map']
+            pred_rgb = model_out['rgb_image']
             losses_out = {}
             gt_rgb = sample['gt_img'].reshape([1,256,256,3]).permute(0, 3, 1, 2)
             # loss on img_raw
-            losses_out['mse_loss'] = torch.mean((pred_rgb - gt_rgb) ** 2) # [B, N, 3] -->  scalar
+            losses_out['mse_loss'] = torch.mean((pred_rgb - gt_rgb) ** 2) # [B, C, H, W] -->  scalar
             
             if self.model.training:
                 # only avaliable at raymarching_train
@@ -232,8 +232,8 @@ class RADNeRFTask(BaseTask):
                 gt_rgb_512 = sample['gt_img_512']
                 sr_pred_rgb_4x = model_out['sr_rgb_image_4x']
                 gt_rgb_1024 = sample['gt_img_1024']
-                sr_mse_loss_2x = torch.mean((sr_pred_rgb - gt_rgb_512) ** 2) # [B, N, 3] -->  scalar
-                sr_mse_loss_4x = torch.mean((sr_pred_rgb_4x - gt_rgb_1024) ** 2) # [B, N, 3] -->  scalar
+                sr_mse_loss_2x = torch.mean((sr_pred_rgb - gt_rgb_512) ** 2) # [B, C, H, W] -->  scalar
+                sr_mse_loss_4x = torch.mean((sr_pred_rgb_4x - gt_rgb_1024) ** 2) # [B, C, H, W] -->  scalar
                 losses_out['sr_mse_loss'] = (sr_mse_loss_2x + sr_mse_loss_4x)/2
             
             if self.global_step >= hparams['lpips_start_iters']:
@@ -278,7 +278,7 @@ class RADNeRFTask(BaseTask):
             # calculate val loss
             if 'gt_img' in sample:
                 gt_rgb = sample['gt_img'].reshape([1,256,256,3]).permute(0, 3, 1, 2)
-                pred_rgb = model_out['rgb_map']
+                pred_rgb = model_out['rgb_image']
                 model_out['mse_loss'] = torch.mean((pred_rgb - gt_rgb) ** 2) # [B, N, 3] -->  scalar
                 model_out['lpips_loss'] = self.criterion_lpips(pred_rgb, gt_rgb).mean()
  
@@ -387,7 +387,7 @@ class RADNeRFTask(BaseTask):
                 sample = move_to_cuda(self.val_dataset[idx_lst[batch_idx]])
             infer_outputs = self.run_model(sample, infer=True)
             H, W = sample['H'], sample['W']
-            img_pred = infer_outputs['rgb_map'].permute(0, 2,3,1).reshape([H, W, 3])
+            img_pred = infer_outputs['rgb_image'].permute(0, 2,3,1).reshape([H, W, 3])
             
             ### Old Code -> When self.sr_net(rgb_map) returned only 'sr_rgb_map' 512
             # img_pred_sr = infer_outputs['sr_rgb_map'].permute(0, 2,3,1).reshape([512, 512, 3])
@@ -434,7 +434,7 @@ class RADNeRFTask(BaseTask):
     @torch.no_grad()
     def test_step(self, sample, batch_idx):
         outputs = self.run_model(sample, infer=True)
-        rgb_pred = outputs['rgb_map']
+        rgb_pred = outputs['rgb_image']
         H, W = sample['H'], sample['W']
         img_pred = rgb_pred.reshape([H, W, 3])
         gen_dir = self.gen_dir
@@ -504,7 +504,7 @@ class RADNeRFTask(BaseTask):
                 # here spp is used as perturb random seed!
                 # face: do not perturb for the first spp, else lead to scatters.
                 infer_outputs = self.run_model(sample, infer=True)
-            preds = infer_outputs['rgb_map'].reshape([1,rH, rW, 3])
+            preds = infer_outputs['rgb_image'].reshape([1,rH, rW, 3])
             preds_depth = infer_outputs['depth_map'].reshape([1, rH, rW])
 
         # interpolation to the original resolution
@@ -536,7 +536,7 @@ class RADNeRFTask(BaseTask):
                 # face: do not perturb for the first spp, else lead to scatters.
                 infer_outputs = self.run_model(sample, infer=True)
         H, W = sample['H'], sample['W']
-        preds = infer_outputs['rgb_map'].reshape([1,H, W, 3])
+        preds = infer_outputs['rgb_image'].reshape([1,H, W, 3])
         preds_depth = infer_outputs['depth_map'].reshape([1,H, W])
 
         # the H/W in data may be differnt to GUI, so we still need to resize...

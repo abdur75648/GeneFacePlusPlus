@@ -5,7 +5,11 @@ set -e
 START_TIME=$(date +%s)
 
 # Assuming video is saved in data/raw/videos/${VIDEO_ID}.mp4
-export VIDEO_ID="Girish1"
+export VIDEO_ID="X"
+source ~/miniconda3/etc/profile.d/conda.sh
+conda activate pytorch
+export PYTHONPATH=./
+
 
 # Step 0: Standardize video resolution to 1024x1024 and FPS to 25 and then to 512
 echo "Step 0.1: Standardizing video resolution and FPS..."
@@ -41,7 +45,7 @@ echo "Step 2: Extracting images..."
 mkdir -p data/processed/videos/${VIDEO_ID}_1024/gt_imgs
 mkdir -p data/processed/videos/${VIDEO_ID}_512/gt_imgs
 ffmpeg -i data/raw/videos/${VIDEO_ID}.mp4 -qmin 1 -q:v 1 -start_number 0 data/processed/videos/${VIDEO_ID}_1024/gt_imgs/%08d.jpg
-python data_gen/utils/process_video/extract_segment_imgs.py --ds_name=nerf --vid_dir=data/raw/videos/${VIDEO_ID}.mp4
+python data_gen/utils/process_video/extract_segment_imgs.py --ds_name=nerf --vid_dir=data/raw/videos/${VIDEO_ID}.mp4 --num_workers 8
 # Following subfolders are created inside data/processed/videos/${VIDEO_ID}/
 # - bg_imgs, com_imgs, gt_imgs, head_imgs, inpaint_torso_imgs, person_imgs, segmaps, torso_imgs
 echo "Images extracted and saved in subfolders: bg_imgs, com_imgs, gt_imgs, head_imgs, inpaint_torso_imgs, person_imgs, segmaps, torso_imgs"
