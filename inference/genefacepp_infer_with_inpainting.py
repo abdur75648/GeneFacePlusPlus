@@ -26,7 +26,6 @@ from data_gen.eg3d.convert_to_eg3d_convention import get_eg3d_convention_camera_
 from data_gen.utils.mp_feature_extractors.face_landmarker import index_lm68_from_lm478, index_lm131_from_lm478
 # Face Parsing 
 from data_gen.utils.mp_feature_extractors.mp_segmenter import MediapipeSegmenter
-from data_gen.utils.process_video.extract_segment_imgs import inpaint_torso_job, extract_background
 # other inference utils
 from inference.infer_utils import mirror_index, load_img_to_512_hwc_array, load_img_to_normalized_512_bchw_tensor
 from inference.infer_utils import smooth_camera_sequence, smooth_features_xd
@@ -184,7 +183,7 @@ class GeneFace2Infer:
         self.dataset_cls = RADNeRFDataset # the dataset only provides head pose 
         self.dataset = self.dataset_cls('trainval', training=False)
         
-        torso_img_fnames = [self.dataset.samples[idx]['torso_img_fname_512'] for idx in range(len(self.dataset.samples))]
+        torso_img_fnames = [self.dataset.samples[idx]['torso_img_fname_1024'] for idx in range(len(self.dataset.samples))]
         self.torso_img_fnames = torso_img_fnames
         
         eye_area_percents = torch.tensor(self.dataset.eye_area_percents)
@@ -469,14 +468,21 @@ class GeneFace2Infer:
                 # forward neural renderer
                 for i in tqdm.trange(num_frames, desc="GeneFace++ is rendering... "):                    
                     # Define bg_color by processing bg_colors_list[i] as per above code
+                    bg_color = {}
                     bg_color_img_fname = bg_colors_list[i]
-                    bg_color_img_tensor = load_image_as_uint8_tensor(bg_color_img_fname).cuda().float()/255.
-                    if hparams.get("with_sr"):
-                        bg_color_img_tensor = F.interpolate(bg_color_img_tensor.unsqueeze(0).permute(0,3,1,2), size=(self.dataset.H,self.dataset.W),  mode='bilinear', antialias=True).squeeze(0).permute(1,2,0)
-                    bg_color_img_tensor_with_bg_inpaint = bg_color_img_tensor[..., :3] * bg_color_img_tensor[..., 3:] + self.dataset.bg_img * (1 - bg_color_img_tensor[..., 3:]) # 256 x 256 x 3
-                    bg_color_img_tensor_with_bg_inpaint = bg_color_img_tensor_with_bg_inpaint.view(1, -1, 3) # torch.Size([1, 65536, 3])
-                    assert bg_color_img_tensor_with_bg_inpaint.shape == (1, 65536, 3)
-                    bg_color = bg_color_img_tensor_with_bg_inpaint
+                    bg_color_img_tensor_4x = load_image_as_uint8_tensor(bg_color_img_fname).cuda().float()/255.
+                    bg_color_img_tensor_4x = bg_color_img_tensor_4x[..., :3] * bg_color_img_tensor_4x[..., 3:] + self.dataset.bg_img_1024 * (1 - bg_color_img_tensor_4x[..., 3:])
+                    bg_color_img_tensor_2x = F.interpolate(bg_color_img_tensor_4x.unsqueeze(0).permute(0,3,1,2), size=(512,512),  mode='bilinear', antialias=True).squeeze(0).permute(1,2,0)
+                    bg_color_img_tensor = F.interpolate(bg_color_img_tensor_4x.unsqueeze(0).permute(0,3,1,2), size=(256,256),  mode='bilinear', antialias=True).squeeze(0).permute(1,2,0)
+                    bg_color_img_tensor = bg_color_img_tensor.view(1, -1, 3) # torch.Size([1, 65536, 3])
+                    bg_color_img_tensor_2x = bg_color_img_tensor_2x.view(1, -1, 3) # torch.Size([1, 262144, 3])
+                    bg_color_img_tensor_4x = bg_color_img_tensor_4x.view(1, -1, 3) # torch.Size([1, 1048576, 3])
+                    assert bg_color_img_tensor.shape == (1, 65536, 3)
+                    assert bg_color_img_tensor_2x.shape == (1, 262144, 3)
+                    assert bg_color_img_tensor_4x.shape == (1, 1048576, 3)
+                    bg_color['bg_color_1x'] = bg_color_img_tensor
+                    bg_color['bg_color_2x'] = bg_color_img_tensor_2x
+                    bg_color['bg_color_4x'] = bg_color_img_tensor_4x
                     
                     model_out = self.secc2video_model.render(rays_o[i], rays_d[i], cond_inp[i], bg_coords, poses[i], index=i, staged=False, bg_color=bg_color,
                                     lm68=lm68s[i], perturb=False, force_all_rays=False,
@@ -487,7 +493,7 @@ class GeneFace2Infer:
                     # else:
                     #     pred_rgb = model_out['rgb_map'][0].reshape([512,512,3]).permute(2,0,1).cpu()
                     # img = (pred_rgb.permute(1,2,0) * 255.).int().cpu().numpy().astype(np.uint8)
-                    pred_rgb = model_out['rgb_map'][0].cpu()
+                    pred_rgb = model_out['rgb_image'][0].cpu()
                     pred_rgb_sr_2x = model_out['sr_rgb_image_2x'][0].cpu()
                     pred_rgb_sr_4x = model_out['sr_rgb_image_4x'][0].cpu()
                     img = (pred_rgb.permute(1,2,0) * 255.).numpy().astype(np.uint8)
