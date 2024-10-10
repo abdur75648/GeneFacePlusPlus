@@ -3,6 +3,7 @@
 import cv2
 import numpy as np
 from tqdm import tqdm
+import moviepy.editor as mp
 
 # Define the file paths
 original_video_path = 'BG_Segmented_VID20240927102042.mp4'
@@ -33,15 +34,15 @@ out = cv2.VideoWriter(output_video_path, fourcc, head_fps, (original_width, orig
 
 # Read offset from the file as x1 y1 x2 y2 and resize the head video to the size of x2-x1 y2-y1, then paste it at x1 y1
 crop_file = "data/raw/videos/Girish1.txt"
-
+print("Reading coordinates from", crop_file)
 with open(crop_file, 'r') as f:
     x1, y1, x2, y2 = map(int, f.readline().strip().split())
     x_offset = x1
     y_offset = y1
     head_width = x2 - x1
     head_height = y2 - y1
-
     assert head_width==head_height
+print("Coordinates read from", crop_file, "are x1, y1, x2, y2:", x1, y1, x2, y2)
 
 # Loop through the frames of both videos
 for i in tqdm(range(head_frame_count)):
@@ -64,5 +65,17 @@ for i in tqdm(range(head_frame_count)):
 original_video.release()
 head_neck_video.release()
 out.release()
-
 cv2.destroyAllWindows()
+print("Output video saved to", output_video_path)
+
+print("Adding audio to the output video from ", head_neck_video_path)
+head_neck_clip = mp.VideoFileClip(head_neck_video_path)
+audio = head_neck_clip.audio
+if audio is None:
+    raise ValueError("Failed to extract audio from ", head_neck_video_path)
+final_clip = mp.VideoFileClip(output_video_path)
+final_clip = final_clip.set_audio(audio)
+final_clip.write_videofile(output_video_path.replace(".mp4", "_with_audio.mp4"), codec="libx264", audio_codec="aac")
+final_clip.close()
+head_neck_clip.close()
+print("Audio added to the output video and saved as", output_video_path.replace(".mp4", "_with_audio.mp4"))

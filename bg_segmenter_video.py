@@ -1,5 +1,6 @@
 import os
 import cv2
+import argparse
 import numpy as np
 from tqdm import tqdm
 import mediapipe as mp
@@ -59,7 +60,7 @@ def process_video(video_path, output_video_path, seg_model, chunk_size=1000):
     out_video = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
 
     if os.cpu_count() > 2:
-        cpu_count = os.cpu_count() - 2
+        cpu_count = min(os.cpu_count() - 2,8)
     else:
         cpu_count = 1
     print(f"Using {cpu_count} cores for parallel processing")
@@ -87,8 +88,14 @@ def process_video(video_path, output_video_path, seg_model, chunk_size=1000):
     print("Segmentation Done - Saved!")
 
 if __name__ == '__main__':
-    video_path = "VID20240927102042.mp4"
-    output_video_path = "BG_Segmented_VID20240927102042.mp4"
+    parser = argparse.ArgumentParser(description="Background Segmenter for Videos")
+    parser.add_argument('-i', '--input', required=True, help="Path to the input video file")
+    parser.add_argument('-o', '--output', required=True, help="Path to the output video file")
+
+    args = parser.parse_args()
+
+    video_path = args.input
+    output_video_path = args.output
     seg_model = MediapipeSegmenter()
 
     process_video(video_path, output_video_path, seg_model)
