@@ -75,10 +75,10 @@ def overlay_head_on_body(original_video_path, head_neck_video_path, output_video
 
 def main():
     parser = argparse.ArgumentParser(description="Overlay generated head and neck video onto the original video.")
-    parser.add_argument('--original_video', type=str, required=True, help="Path to the original video")
-    parser.add_argument('--head_neck_video', type=str, required=True, help="Path to the head and neck video")
-    parser.add_argument('--output_video', type=str, required=True, help="Path where the output video will be saved")
-    parser.add_argument('--coordinates_file', type=str, required=True, help="Path to the text file containing coordinates")
+    parser.add_argument('-i1', '--original_video', type=str, required=True, help="Path to the original video")
+    parser.add_argument('-i2', '--head_neck_video', type=str, required=True, help="Path to the head and neck video")
+    parser.add_argument('-c', '--coordinates_file', type=str, required=True, help="Path to the text file containing coordinates")
+    parser.add_argument('-o', '--output_video', type=str, required=True, help="Path where the output video will be saved")
 
     args = parser.parse_args()
 
