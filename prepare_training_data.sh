@@ -9,13 +9,14 @@ export VIDEO_ID="X"
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate pytorch
 export PYTHONPATH=./
+export CUDA_VISIBLE_DEVICES=0
 
 
 # Step 0: Standardize video resolution to 1024x1024 and FPS to 25 and then to 512
 echo "Step 0.1: Standardizing video resolution and FPS..."
 ffmpeg -i data/raw/videos/${VIDEO_ID}.mp4 -vf fps=25,scale=w=1024:h=1024 -qmin 1 -q:v 1 data/raw/videos/${VIDEO_ID}_1024.mp4
 mv data/raw/videos/${VIDEO_ID}.mp4 data/raw/videos/${VIDEO_ID}_to_rm.mp4
-mv data/raw/videos/${VIDEO_ID}_512.mp4 data/raw/videos/${VIDEO_ID}.mp4
+mv data/raw/videos/${VIDEO_ID}_1024.mp4 data/raw/videos/${VIDEO_ID}.mp4
 ffmpeg -i data/raw/videos/${VIDEO_ID}.mp4 -vf fps=25,scale=w=512:h=512 -qmin 1 -q:v 1 data/raw/videos/${VIDEO_ID}_512.mp4
 
 

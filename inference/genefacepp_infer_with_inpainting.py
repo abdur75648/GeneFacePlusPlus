@@ -550,7 +550,8 @@ class GeneFace2Infer:
             print(f"Saved at {inp['out_name']} and {inp['out_name'].replace('.mp4', '.sr.mp4')}")
             os.system(f"rm {self.wav16k_name}")
             os.system(f"rm {tmp_out_name}")
-            os.system(f"rm {tmp_out_name.replace('.mp4', '.sr.mp4')}")
+            os.system(f"rm {tmp_out_name.replace('.mp4', '.sr_2x.mp4')}")
+            os.system(f"rm {tmp_out_name.replace('.mp4', '.sr_4x.mp4')}")
         else:
             raise ValueError(f"error running {cmd}, please check ffmpeg installation, especially check whether it supports libx264!")
 

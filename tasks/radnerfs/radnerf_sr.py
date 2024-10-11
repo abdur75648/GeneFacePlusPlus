@@ -250,7 +250,7 @@ class RADNeRFTask(BaseTask):
                 sr_lip_lpips_loss_1x = self.criterion_lpips(sr_pred_rgb[:,:,ymin:ymax, xmin:xmax], gt_rgb[:,:,ymin:ymax, xmin:xmax]).mean()
                 losses_out['sr_lip_lpips_loss'] = sr_lip_lpips_loss_1x
                 
-                if self.global_step >= hparams['lpips_start_iters'] + 10000:
+                if self.global_step >= hparams['lpips_start_iters'] + 20000:
                     sr_lpips_loss_2x = self.criterion_lpips(sr_pred_rgb, gt_rgb_512).mean()
                     sr_lpips_loss_4x = self.criterion_lpips(sr_pred_rgb_4x, gt_rgb_1024).mean()
                     losses_out['sr_lpips_loss'] = (sr_lpips_loss_2x + sr_lpips_loss_4x)/2
