@@ -431,8 +431,8 @@ class GeneFace2Infer:
 
         # face boundark mask, for cond mask
         trans = batch['trans']
-        if inp['remove_wobbles']:
-            trans = remove_wobbles(trans, batch['euler'])
+        # if inp['remove_wobbles']:
+        trans = remove_wobbles(trans, batch['euler'])
         smo_euler = smooth_features_xd(batch['euler'])
         smo_trans = smooth_features_xd(trans)
         batch['trans'] = smo_trans

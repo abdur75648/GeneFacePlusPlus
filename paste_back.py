@@ -1,3 +1,4 @@
+import os
 import cv2
 import numpy as np
 import argparse
@@ -5,6 +6,8 @@ from tqdm import tqdm
 import moviepy.editor as mp
 
 def overlay_head_on_body(original_video_path, head_neck_video_path, output_video_path, coordinates_file):
+    os.makedirs(os.path.dirname(output_video_path), exist_ok=True)
+    
     # Open both video files
     original_video = cv2.VideoCapture(original_video_path)
     head_neck_video = cv2.VideoCapture(head_neck_video_path)
@@ -71,6 +74,8 @@ def overlay_head_on_body(original_video_path, head_neck_video_path, output_video
     final_clip.write_videofile(output_video_path.replace(".mp4", "_with_audio.mp4"), codec="libx264", audio_codec="aac")
     final_clip.close()
     head_neck_clip.close()
+    os.remove(output_video_path)
+    os.rename(output_video_path.replace(".mp4", "_with_audio.mp4"), output_video_path)
     print("Audio added to the output video and saved as", output_video_path.replace(".mp4", "_with_audio.mp4"))
 
 def main():

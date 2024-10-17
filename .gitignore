@@ -1,3 +1,11 @@
+utils/metrics/shape_predictor_68_face_landmarks.dat
+*.mp4
+*.wav
+_torchshow/
+*.png
+*.jpg
+*.txt
+
 # big files
 data_util/face_tracking/3DMM/01_MorphableModel.mat
 data_util/face_tracking/3DMM/3DMM_info.npy
@@ -28,12 +36,13 @@ data/processed/videos/*
 !data/processed/videos/.gitkeep
 /data/raw/videos/*
 !data/raw/videos/.gitkeep
-/data/raw/val_wavs/*
-!data/raw/val_wavs/MacronSpeech.wav
 !data/raw/val_wavs/May_10s.wav
 !data/raw/val_wavs/Obama_audio_10s.wav
-!data/raw/val_wavs/Myself_30s_aud.wav
-!data/raw/val_wavs/MARTIN_LUTHER_KING_6mins.wav
+!data/raw/val_wavs/Chinese_XiJinping_30s.wav
+!data/raw/val_wavs/French_EmmanuelMacron_60s.wav
+!data/raw/val_wavs/Hindi_RavishKumar_60s.wav
+!data/raw/val_wavs/Italian_GiorgiaMelonia_30s.wav
+!data/raw/val_wavs/OneSentenceIn15Languages_90s.wav
 *.sh
 !prepare_training_data.sh
 /egs/datasets/*
@@ -208,13 +217,6 @@ process_data_May.sh
 /env_prepare_reproduce.md
 /my_debug.py
 
-utils/metrics/shape_predictor_68_face_landmarks.dat
-*.mp4
-*.wav
-_torchshow/
-*.png
-*.jpg
-*.txt
 
 legacy/
 *.mrc
