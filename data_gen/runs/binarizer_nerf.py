@@ -195,23 +195,31 @@ def get_win_conds(conds, idx, smo_win_size=8, pad_option='zero'):
 
 
 def load_processed_data(processed_dir):
-    # load necessary files
-    background_img_name = os.path.join(processed_dir, "bg.jpg")
-    assert os.path.exists(background_img_name)
-    head_img_dir = os.path.join(processed_dir, "head_imgs")
-    torso_img_dir = os.path.join(processed_dir, "inpaint_torso_imgs")
-    gt_img_dir = os.path.join(processed_dir, "com_imgs")
+    processed_dir_512 = processed_dir + "_512"
+    background_img_name_512 = os.path.join(processed_dir_512, "bg.jpg")
+    assert os.path.exists(background_img_name_512)
+    # head_img_dir_512 = os.path.join(processed_dir_512, "head_imgs")
+    torso_img_dir_512 = os.path.join(processed_dir_512, "inpaint_torso_imgs")
+    gt_img_dir_512 = os.path.join(processed_dir_512, "com_imgs")
     # gt_img_dir = os.path.join(processed_dir, "gt_imgs")
+    
+    processed_dir_1024 = processed_dir + "_1024"
+    background_img_name_1024 = os.path.join(processed_dir_1024, "bg.jpg")
+    assert os.path.exists(background_img_name_1024)
+    # head_img_dir_1024 = os.path.join(processed_dir_1024, "head_imgs")
+    torso_img_dir_1024 = os.path.join(processed_dir_1024, "inpaint_torso_imgs")
+    gt_img_dir_1024 = os.path.join(processed_dir_1024, "com_imgs")
 
-    hubert_npy_name = os.path.join(processed_dir, "aud_hubert.npy")
-    mel_f0_npy_name = os.path.join(processed_dir, "aud_mel_f0.npy")
-    coeff_npy_name = os.path.join(processed_dir, "coeff_fit_mp.npy")
-    lm2d_npy_name = os.path.join(processed_dir, "lms_2d.npy")
+    hubert_npy_name = os.path.join(processed_dir_512, "aud_hubert.npy")
+    mel_f0_npy_name = os.path.join(processed_dir_512, "aud_mel_f0.npy")
+    coeff_npy_name = os.path.join(processed_dir_512, "coeff_fit_mp.npy")
+    lm2d_npy_name = os.path.join(processed_dir_512, "lms_2d.npy")
     
     ret_dict = {}
 
-    ret_dict['bg_img'] = imageio.imread(background_img_name)
-    ret_dict['H'], ret_dict['W'] = ret_dict['bg_img'].shape[:2]
+    ret_dict['bg_img_512'] = imageio.imread(background_img_name_512)
+    ret_dict['bg_img_1024'] = imageio.imread(background_img_name_1024)
+    ret_dict['H'], ret_dict['W'] = ret_dict['bg_img_512'].shape[:2]
     ret_dict['focal'], ret_dict['cx'], ret_dict['cy'] = face_model.focal, face_model.center, face_model.center
 
     print("loading lm2d coeff ...")
@@ -294,9 +302,12 @@ def load_processed_data(processed_dir):
         for idx in indices:
             sample = {}
             sample['idx'] = idx
-            sample['head_img_fname'] = os.path.join(head_img_dir,f"{idx:08d}.png")
-            sample['torso_img_fname'] = os.path.join(torso_img_dir,f"{idx:08d}.png")
-            sample['gt_img_fname'] = os.path.join(gt_img_dir,f"{idx:08d}.jpg")
+            # sample['head_img_fname'] = os.path.join(head_img_dir,f"{idx:08d}.png")
+            sample['torso_img_fname_512'] = os.path.join(torso_img_dir_512,f"{idx:08d}.png")
+            sample['torso_img_fname_1024'] = os.path.join(torso_img_dir_1024,f"{idx:08d}.png")
+            sample['gt_img_fname_512'] = os.path.join(gt_img_dir_512,f"{idx:08d}.jpg")
+            sample['gt_img_fname_1024'] = os.path.join(gt_img_dir_1024,f"{idx:08d}.jpg")
+            assert os.path.exists(sample['torso_img_fname_512']) and os.path.exists(sample['torso_img_fname_1024']) and os.path.exists(sample['gt_img_fname_512']) and os.path.exists(sample['gt_img_fname_1024'])
             # assert os.path.exists(sample['head_img_fname']) and os.path.exists(sample['torso_img_fname']) and os.path.exists(sample['gt_img_fname'])
             sample['face_rect'] = face_rects[idx]
             sample['lip_rect'] = lip_rect_lst[idx]
@@ -315,7 +326,7 @@ class Binarizer:
         out_fname = os.path.join(binary_dir, "trainval_dataset.npy")
         os.makedirs(binary_dir, exist_ok=True)
         ret = load_processed_data(processed_dir)
-        mel_name = os.path.join(processed_dir, 'aud_mel_f0.npy')
+        mel_name = os.path.join(processed_dir + "_512", 'aud_mel_f0.npy')
         mel_f0_dict = np.load(mel_name, allow_pickle=True).tolist()
         ret.update(mel_f0_dict)
         np.save(out_fname, ret, allow_pickle=True)

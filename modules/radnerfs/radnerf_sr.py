@@ -25,6 +25,8 @@ class Superresolution(torch.nn.Module):
                 img_channels=3, is_last=False, use_fp16=use_fp16, conv_clamp=(256 if use_fp16 else None), **block_kwargs)
         self.block1 = SynthesisBlock(128, 64, w_dim=self.w_dim, resolution=512,
                 img_channels=3, is_last=True, use_fp16=use_fp16, conv_clamp=(256 if use_fp16 else None), **block_kwargs)
+        self.block2 = SynthesisBlock(64, 32, w_dim=self.w_dim, resolution=1024,
+                img_channels=3, is_last=True, use_fp16=use_fp16, conv_clamp=(256 if use_fp16 else None), **block_kwargs)
         self.register_buffer('resample_filter', upfirdn2d.setup_filter([1,3,3,1]))
 
     def forward(self, rgb, **block_kwargs):
@@ -38,9 +40,10 @@ class Superresolution(torch.nn.Module):
             rgb = torch.nn.functional.interpolate(rgb, size=(self.input_resolution, self.input_resolution),
                                                   mode='bilinear', align_corners=False, antialias=self.sr_antialias)
 
-        x, rgb = self.block0(x, rgb, ws, **block_kwargs)
-        x, rgb = self.block1(x, rgb, ws, **block_kwargs)
-        return rgb
+        x, rgb = self.block0(x, rgb, ws, **block_kwargs) # Output rgb is 1,3,256,256
+        x, rgb_512 = self.block1(x, rgb, ws, **block_kwargs) # Output rgb is 1,3,512,512
+        x, rgb_1024 = self.block2(x, rgb_512, ws, **block_kwargs) # Output rgb is 1,3,1024,1024
+        return rgb_512, rgb_1024
 
 class RADNeRFwithSR(NeRFRenderer):
     def __init__(self, hparams):
@@ -203,8 +206,10 @@ class RADNeRFwithSR(NeRFRenderer):
     def render(self, rays_o, rays_d, cond, bg_coords, poses, index=0, dt_gamma=0, bg_color=None, perturb=False, force_all_rays=False, max_steps=1024, T_thresh=1e-4, cond_mask=None, eye_area_percent=None, **kwargs):
         results = super().render(rays_o, rays_d, cond, bg_coords, poses, index, dt_gamma, bg_color, perturb, force_all_rays, max_steps, T_thresh, cond_mask, eye_area_percent=eye_area_percent, **kwargs)
         rgb_image = results['rgb_map'].reshape([1, 256, 256, 3]).permute(0,3,1,2)
-        sr_rgb_image = self.sr_net(rgb_image.clone())
-        sr_rgb_image = sr_rgb_image.clamp(0,1)
+        sr_rgb_image_2x, sr_rgb_image_4x = self.sr_net(rgb_image.clone()) # 512, 1024
+        sr_rgb_image_2x = sr_rgb_image_2x.clamp(0,1)
+        sr_rgb_image_4x = sr_rgb_image_4x.clamp(0,1)
         results['rgb_map'] = rgb_image
-        results['sr_rgb_map'] = sr_rgb_image
+        results['sr_rgb_image_2x'] = sr_rgb_image_2x
+        results['sr_rgb_image_4x'] = sr_rgb_image_4x
         return results

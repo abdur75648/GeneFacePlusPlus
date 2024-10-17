@@ -29,7 +29,7 @@ from data_gen.utils.mp_feature_extractors.mp_segmenter import MediapipeSegmenter
 from data_gen.utils.process_video.extract_segment_imgs import inpaint_torso_job, extract_background
 # other inference utils
 from inference.infer_utils import mirror_index, load_img_to_512_hwc_array, load_img_to_normalized_512_bchw_tensor
-from inference.infer_utils import smooth_camera_sequence, smooth_features_xd
+from inference.infer_utils import smooth_camera_sequence, smooth_features_xd, remove_wobbles
 from utils.commons.pitch_utils import f0_to_coarse
 # Dataset Related
 from tasks.radnerfs.dataset_utils import RADNeRFDataset, get_boundary_mask, dilate_boundary_mask, get_lf_boundary_mask
@@ -41,6 +41,8 @@ from modules.radnerfs.radnerf import RADNeRF
 from modules.radnerfs.radnerf_sr import RADNeRFwithSR
 from modules.radnerfs.radnerf_torso import RADNeRFTorso
 from modules.radnerfs.radnerf_torso_sr import RADNeRFTorsowithSR
+
+from utils.commons.image_utils import load_image_as_uint8_tensor
 
 
 face3d_helper = None
@@ -181,6 +183,10 @@ class GeneFace2Infer:
             load_ckpt(model, f"{head_model_dir}", model_name='model', strict=True)
         self.dataset_cls = RADNeRFDataset # the dataset only provides head pose 
         self.dataset = self.dataset_cls('trainval', training=False)
+        
+        torso_img_fnames = [self.dataset.samples[idx]['torso_img_fname_512'] for idx in range(len(self.dataset.samples))]
+        self.torso_img_fnames = torso_img_fnames
+        
         eye_area_percents = torch.tensor(self.dataset.eye_area_percents)
         self.closed_eye_area_percent = torch.quantile(eye_area_percents, q=0.03).item()
         self.opened_eye_area_percent = torch.quantile(eye_area_percents, q=0.97).item()
@@ -270,8 +276,10 @@ class GeneFace2Infer:
         sample['poses'] = pose_lst
         sample['euler'] = torch.stack(euler_lst).cuda()
         sample['trans'] = torch.stack(trans_lst).cuda()
-        sample['bg_img'] = self.dataset.bg_img.reshape([1,-1,3]).cuda()
+        sample['torso_bg_imgs'] = self.torso_img_fnames
         sample['bg_coords'] = self.dataset.bg_coords.cuda()
+        
+        print("Prepared sample for inference.")
         return sample
 
     @torch.no_grad()
@@ -422,8 +430,13 @@ class GeneFace2Infer:
         batch['cond_wins'] = cond_wins
 
         # face boundark mask, for cond mask
+        trans = batch['trans']
+        if inp['remove_wobbles']:
+            trans = remove_wobbles(trans, batch['euler'])
         smo_euler = smooth_features_xd(batch['euler'])
-        smo_trans = smooth_features_xd(batch['trans'])
+        smo_trans = smooth_features_xd(trans)
+        batch['trans'] = smo_trans
+        batch['euler'] = smo_euler
         lm2d = self.face3d_helper.reconstruct_lm2d_nerf(id, exp, smo_euler, smo_trans)
         lm68 = lm2d[:, index_lm68_from_lm478, :]
         batch['lm68'] = lm68.reshape([lm68.shape[0], 68*2])
@@ -438,7 +451,7 @@ class GeneFace2Infer:
         rays_d = batch['rays_d']
         cond_inp = batch['cond_wins']
         bg_coords = batch['bg_coords']
-        bg_color = batch['bg_img']
+        bg_colors_list = batch['torso_bg_imgs']
         poses = batch['poses']
         lm68s = batch['lm68']
         eye_area_percent = batch['eye_area_percent']
@@ -454,12 +467,24 @@ class GeneFace2Infer:
             import imageio
             tmp_out_name = inp['out_name'].replace(".mp4", ".tmp.mp4")
             writer = imageio.get_writer(tmp_out_name, fps = 25, format='FFMPEG', codec='h264')
-            writer_sr = imageio.get_writer(tmp_out_name.replace(".mp4", ".sr.mp4"), fps = 25, format='FFMPEG', codec='h264')
+            writer_sr_2x = imageio.get_writer(tmp_out_name.replace(".mp4", ".sr_2x.mp4"), fps = 25, format='FFMPEG', codec='h264')
+            writer_sr_4x = imageio.get_writer(tmp_out_name.replace(".mp4", ".sr_4x.mp4"), fps = 25, format='FFMPEG', codec='h264')
 
             with torch.cuda.amp.autocast(enabled=True):
                 # forward neural renderer
-                for i in tqdm.trange(num_frames, desc="GeneFace++ is rendering... "):
-                    model_out = self.secc2video_model.render(rays_o[i], rays_d[i], cond_inp[i], bg_coords, poses[i], index=i, staged=False, bg_color=bg_color, lm68=lm68s[i], perturb=False, force_all_rays=False,
+                for i in tqdm.trange(num_frames, desc="GeneFace++ is rendering... "):                    
+                    # Define bg_color by processing bg_colors_list[i] as per above code
+                    bg_color_img_fname = bg_colors_list[i]
+                    bg_color_img_tensor = load_image_as_uint8_tensor(bg_color_img_fname).cuda().float()/255.
+                    if hparams.get("with_sr"):
+                        bg_color_img_tensor = F.interpolate(bg_color_img_tensor.unsqueeze(0).permute(0,3,1,2), size=(self.dataset.H,self.dataset.W),  mode='bilinear', antialias=True).squeeze(0).permute(1,2,0)
+                    bg_color_img_tensor_with_bg_inpaint = bg_color_img_tensor[..., :3] * bg_color_img_tensor[..., 3:] + self.dataset.bg_img * (1 - bg_color_img_tensor[..., 3:]) # 256 x 256 x 3
+                    bg_color_img_tensor_with_bg_inpaint = bg_color_img_tensor_with_bg_inpaint.view(1, -1, 3) # torch.Size([1, 65536, 3])
+                    assert bg_color_img_tensor_with_bg_inpaint.shape == (1, 65536, 3)
+                    bg_color = bg_color_img_tensor_with_bg_inpaint
+                    
+                    model_out = self.secc2video_model.render(rays_o[i], rays_d[i], cond_inp[i], bg_coords, poses[i], index=i, staged=False, bg_color=bg_color,
+                                    lm68=lm68s[i], perturb=False, force_all_rays=False,
                                     T_thresh=inp['raymarching_end_threshold'], eye_area_percent=eye_area_percent[i],
                                     **hparams)
                     # if self.secc2video_hparams.get('with_sr', False):
@@ -468,16 +493,21 @@ class GeneFace2Infer:
                     #     pred_rgb = model_out['rgb_map'][0].reshape([512,512,3]).permute(2,0,1).cpu()
                     # img = (pred_rgb.permute(1,2,0) * 255.).int().cpu().numpy().astype(np.uint8)
                     pred_rgb = model_out['rgb_map'][0].cpu()
-                    pred_rgb_sr = model_out['sr_rgb_map'][0].cpu()
+                    pred_rgb_sr_2x = model_out['sr_rgb_image_2x'][0].cpu()
+                    pred_rgb_sr_4x = model_out['sr_rgb_image_4x'][0].cpu()
                     img = (pred_rgb.permute(1,2,0) * 255.).numpy().astype(np.uint8)
-                    img_sr = (pred_rgb_sr.permute(1,2,0) * 255.).numpy().astype(np.uint8)
+                    img_sr_2x = (pred_rgb_sr_2x.permute(1,2,0) * 255.).numpy().astype(np.uint8)
+                    img_sr_4x = (pred_rgb_sr_4x.permute(1,2,0) * 255.).numpy().astype(np.uint8)
                     writer.append_data(img)
-                    writer_sr.append_data(img_sr)
+                    writer_sr_2x.append_data(img_sr_2x)
+                    writer_sr_4x.append_data(img_sr_4x)
+                    
             writer.close()
-            writer_sr.close()
+            writer_sr_2x.close()
+            writer_sr_4x.close()
 
         else:
-
+            raise NotImplementedError("Not implemented yet.")
             with torch.cuda.amp.autocast(enabled=True):
                 # forward neural renderer
                 for i in tqdm.trange(num_frames, desc="GeneFace++ is rendering... "):
@@ -516,14 +546,17 @@ class GeneFace2Infer:
             writer.close()
 
         cmd = f"ffmpeg -i {tmp_out_name} -i {self.wav16k_name} -y -shortest -c:v libx264 -pix_fmt yuv420p -b:v 2000k -y -v quiet -shortest {inp['out_name']}"
-        cmd_sr = f"ffmpeg -i {tmp_out_name.replace('.mp4', '.sr.mp4')} -i {self.wav16k_name} -y -shortest -c:v libx264 -pix_fmt yuv420p -b:v 2000k -y -v quiet -shortest {inp['out_name'].replace('.mp4', '.sr.mp4')}"
+        cmd_sr_2x = f"ffmpeg -i {tmp_out_name.replace('.mp4', '.sr_2x.mp4')} -i {self.wav16k_name} -y -shortest -c:v libx264 -pix_fmt yuv420p -b:v 2000k -y -v quiet -shortest {inp['out_name'].replace('.mp4', '.sr_2x.mp4')}"
+        cmd_sr_4x = f"ffmpeg -i {tmp_out_name.replace('.mp4', '.sr_4x.mp4')} -i {self.wav16k_name} -y -shortest -c:v libx264 -pix_fmt yuv420p -b:v 2000k -y -v quiet -shortest {inp['out_name'].replace('.mp4', '.sr_4x.mp4')}"
         ret = os.system(cmd)
-        ret_sr = os.system(cmd_sr)
-        if ret == 0 and ret_sr == 0:
+        ret_sr_2x = os.system(cmd_sr_2x)
+        ret_sr_4x = os.system(cmd_sr_4x)
+        if ret == 0 and ret_sr_2x == 0 and ret_sr_4x == 0:
             print(f"Saved at {inp['out_name']} and {inp['out_name'].replace('.mp4', '.sr.mp4')}")
             os.system(f"rm {self.wav16k_name}")
             os.system(f"rm {tmp_out_name}")
-            os.system(f"rm {tmp_out_name.replace('.mp4', '.sr.mp4')}")
+            os.system(f"rm {tmp_out_name.replace('.mp4', '.sr_2x.mp4')}")
+            os.system(f"rm {tmp_out_name.replace('.mp4', '.sr_4x.mp4')}")
         else:
             raise ValueError(f"error running {cmd}, please check ffmpeg installation, especially check whether it supports libx264!")
 
@@ -581,7 +614,7 @@ if __name__ == '__main__':
     parser.add_argument("--fast", action='store_true') 
     parser.add_argument("--out_name", default='tmp.mp4') 
     parser.add_argument("--low_memory_usage", action='store_true', help='write img to video upon generated, leads to slower fps, but use less memory')
-
+    parser.add_argument("--remove_wobbles", action='store_true', help='remove wobbles in translation')
 
     args = parser.parse_args()
     
@@ -603,6 +636,7 @@ if __name__ == '__main__':
             'out_name': args.out_name,
             'raymarching_end_threshold': args.raymarching_end_threshold,
             'low_memory_usage': args.low_memory_usage,
+            'remove_wobbles': args.remove_wobbles
             }
     if args.fast:
         inp['raymarching_end_threshold'] = 0.05

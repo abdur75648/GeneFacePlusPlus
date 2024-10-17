@@ -32,6 +32,8 @@ data/processed/videos/*
 !data/raw/val_wavs/MacronSpeech.wav
 !data/raw/val_wavs/May_10s.wav
 !data/raw/val_wavs/Obama_audio_10s.wav
+!data/raw/val_wavs/Myself_30s_aud.wav
+!data/raw/val_wavs/MARTIN_LUTHER_KING_6mins.wav
 *.sh
 !prepare_training_data.sh
 /egs/datasets/*
@@ -208,9 +210,11 @@ process_data_May.sh
 
 utils/metrics/shape_predictor_68_face_landmarks.dat
 *.mp4
+*.wav
 _torchshow/
 *.png
 *.jpg
+*.txt
 
 legacy/
 *.mrc
