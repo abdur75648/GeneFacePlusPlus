@@ -7,6 +7,7 @@ import importlib
 import tqdm
 import copy
 import cv2
+from scipy.signal import medfilt, savgol_filter
 from scipy.spatial.transform import Rotation
 
 
@@ -37,7 +38,7 @@ def mirror_index(index, len_seq):
     else:
         return len_seq - res - 1 # reverse indexing
     
-def smooth_camera_sequence(camera, kernel_size=7):
+def smooth_camera_sequence(camera, kernel_size=11):
     """
     smooth the camera trajectory (i.e., rotation & translation)...
     args:
@@ -100,6 +101,63 @@ def smooth_features_xd(in_tensor, kernel_size=7):
     elif ndim == 5: # tcchw, like deformation
         return out_tensor.reshape([c1,c2,h,w,t]).permute(4,0,1,2,3)
 
+
+def remove_wobbles(batch_trans, batch_euler, window_size=25, stride=None):
+    print("Removing wobbles from the translation data")
+    # batch_trans is expected to be a PyTorch tensor of shape (248, 3) [x, y, z]
+    
+    if stride is None:
+        stride = window_size // 2  # Default stride is half the window size
+    
+    # Convert PyTorch tensor to NumPy array for easier manipulation with scipy
+    trans = batch_trans.cpu().numpy()
+    euler = batch_euler.cpu().numpy()
+    
+    # Extract x, y, z translations
+    trans_x = trans[:, 0]
+    trans_y = trans[:, 1]
+    trans_z = trans[:, 2]
+    euler_x = euler[:, 0]
+    euler_y = euler[:, 1]
+    euler_z = euler[:, 2]
+
+    
+    # Calculate dynamic thresholds based on the statistics of the data
+    threshold_x = np.std(trans_x) * 1.5
+    threshold_y = np.std(trans_y) * 1.5
+    threshold_z = np.std(trans_z) * 1.5
+    threshold_euler_x  = np.std(euler_x) * 1.5
+    threshold_euler_y  = np.std(euler_y) * 1.5
+    threshold_euler_z  = np.std(euler_z) * 1.5
+    
+    # Create a copy of the z-component to modify
+    smoothed_z = trans_z.copy()
+    
+    # Loop over the data with a sliding window
+    for i in range(0, len(trans_z), stride):
+        # Break the loop if the window goes out of bounds
+        if i + window_size > len(trans_z):
+            break
+        
+        window_x = trans_x[i:i+window_size]
+        window_y = trans_y[i:i+window_size]
+        window_z = trans_z[i:i+window_size]
+        window_euler_x = euler_x[i:i+window_size]
+        window_euler_y = euler_y[i:i+window_size]
+        window_euler_z = euler_z[i:i+window_size]
+        
+        if np.max(window_z) - np.min(window_z) > threshold_z:
+            if np.max(window_x) - np.min(window_x) < threshold_x and np.max(window_y) - np.min(window_y) < threshold_y and np.max(window_euler_x) - np.min(window_euler_x) < threshold_euler_x and np.max(window_euler_y) - np.min(window_euler_y) < threshold_euler_y and np.max(window_euler_z) - np.min(window_euler_z) < threshold_euler_z:
+                smoothed_z[i:i+window_size] = medfilt(window_z, kernel_size=11)
+                smoothed_z[i:i+window_size] = savgol_filter(smoothed_z[i:i+window_size], window_size, 3)
+    
+    # Reassemble the smoothed translation tensor (x, y stay the same, z is smoothed)
+    smoothed_trans = np.stack((trans_x, trans_y, smoothed_z), axis=1)
+    
+    # Convert the result back to a PyTorch tensor
+    smoothed_trans_tensor = torch.from_numpy(smoothed_trans).to(batch_trans.device)
+    
+    return smoothed_trans_tensor
 
 def extract_audio_motion_from_ref_video(video_name):
     def save_wav16k(audio_name):

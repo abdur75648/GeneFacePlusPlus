@@ -228,11 +228,11 @@ def fit_3dmm_for_a_video(
 
     set_requires_grad([id_para, exp_para, euler_angle, trans])
 
-    optimizer_idexp = torch.optim.Adam([id_para, exp_para], lr=.1)
-    optimizer_frame = torch.optim.Adam([euler_angle, trans], lr=.1)
+    optimizer_idexp = torch.optim.Adam([id_para, exp_para], lr=0.05)
+    optimizer_frame = torch.optim.Adam([euler_angle, trans], lr=0.05)
 
     print("="*20, " Part 1/3: Starting initial training of euler and trans parameters... ", "="*20)
-    for epoch in tqdm.tqdm(range(300)):
+    for epoch in tqdm.tqdm(range(200)):
         if id_mode == 'global':
             proj_geo = face_model.compute_for_landmark_fit(
                 id_para.expand((num_frames, id_dim)), exp_para, euler_angle, trans)
@@ -252,11 +252,11 @@ def fit_3dmm_for_a_video(
     # print(f"trans_z_mean: {trans[...,2].mean().item():.4f}, trans_z_std: {trans[...,2].std().item():.4f}, trans_min: {trans[...,2].min().item():.4f}, trans_max: {trans[...,2].max().item():.4f}")
 
     for param_group in optimizer_frame.param_groups:
-        param_group['lr'] = 0.1
+        param_group['lr'] = 0.05
 
     # "jointly roughly training id exp euler trans"
     print("="*20, " Part 2/3: Starting joint rough training of id, exp, euler, and trans parameters... ", "="*20)
-    for epoch in tqdm.tqdm(range(300)):
+    for epoch in tqdm.tqdm(range(200)):
         ret = {}
         if id_mode == 'global':
             proj_geo = face_model.compute_for_landmark_fit(
@@ -275,6 +275,19 @@ def fit_3dmm_for_a_video(
 
         loss_vel_id = cal_vel_loss(id_para)
         loss_vel_exp = cal_vel_loss(exp_para)
+        
+        ### print(f"loss_lan: {loss_lan.item():.2f}\nloss_reg_id: {loss_regid.item():.2f}\nloss_reg_exp: {loss_regexp.item():.2f}\nloss_lap_ldm: {loss_lap.item():.4f}, loss_vel_id: {loss_vel_id.item():.4f}, loss_vel_exp: {loss_vel_exp.item():.4f}")
+        if torch.isnan(loss_lan):
+            loss_lan = 0
+        if torch.isnan(loss_regid):
+            loss_regid = 0
+        if torch.isnan(loss_regexp):
+            loss_regexp = 0
+        if torch.isnan(loss_vel_id):
+            loss_vel_id = 0
+        if torch.isnan(loss_vel_exp):
+            loss_vel_exp = 0
+        
         loss = loss_lan  + loss_regid * LAMBDA_REG_ID + loss_regexp * LAMBDA_REG_EXP  + loss_vel_id * LAMBDA_REG_VEL_ID + loss_vel_exp * LAMBDA_REG_VEL_EXP + loss_lap * LAMBDA_REG_LAP
         optimizer_idexp.zero_grad()
         optimizer_frame.zero_grad()
@@ -477,7 +490,8 @@ def fit_3dmm_for_a_video(
     #     return False
 
     if save:
-        np.save(out_name, coeff_dict, allow_pickle=True) 
+        np.save(out_name, coeff_dict, allow_pickle=True)
+    print(f"Saved 3dmm coefficients to {out_name}")
     return coeff_dict
 
 def out_exist_job(vid_name):

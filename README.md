@@ -121,15 +121,9 @@ export HF_ENDPOINT=https://hf-mirror.com
 
 ### Step 9: Run the Inference Script
 ```bash
-python inference/genefacepp_infer.py --a2m_ckpt=checkpoints/audio2motion_vae --head_ckpt= --torso_ckpt=checkpoints/motion2video_nerf/may_torso --drv_aud=data/raw/val_wavs/MacronSpeech.wav --out_name=may_demo.mp4
+python inference/genefacepp_infer.py --a2m_ckpt=checkpoints/audio2motion_vae --head_ckpt=checkpoints/motion2video_nerf/${VIDEO_ID}_head --torso_ckpt='' --drv_aud=data/raw/val_wavs/Obama_audio_10s.wav --out_name=output_${VIDEO_ID}.mp4
 ```
 
-### Step 10: Start the Gradio Demo App
-```bash
-python inference/app_genefacepp.py --server 0.0.0.0 --a2m_ckpt=checkpoints/audio2motion_vae --head_ckpt= --torso_ckpt=checkpoints/motion2video_nerf/may_torso
-```
-
-You can access the server at [http://127.0.0.1:7869](http://127.0.0.1:7869)
 Now you can quit the docker container at any time.
 
 ### To restart the Docker Container and the Inference Environment
@@ -153,36 +147,37 @@ bash prepare_training_data.sh
 ```
 
 - Set `VIDEO_ID` as per the name of your video
-- It should take approximately 1.5 hour to finish all the processing for a 5-minute video <!-- To-Do -->
-- The processed data will be saved in `data/binary/videos/${VIDEO_ID}/`
-- Copy a config folder `egs/datasets/{Video_ID}` following `egs/datasets/Custom`
+- It should take approximately ~1 hour to finish all the processing for a 5-minute video
+- The processed data will be saved in `data/binary/videos/${VIDEO_ID}/` and `data/processed/videos/${VIDEO_ID}/`
+- ALREADY INCLUDED in above `prepare_training_data.sh` script: Copy a config folder `egs/datasets/{Video_ID}` following `egs/datasets/Custom`
     - Make sure to change the ```video_id``` in ```lm3d_radnerf_torso.yaml``` and ```lm3d_radnerf.yaml``` from ```Custom``` to your ```VIDEO_ID```
     - Make sure to change the ```head_model_dir``` in ```lm3d_radnerf_torso.yaml``` as per your ```VIDEO_ID```
 - Use the command lines below to train the NeRF models
 
-First, train the Head NeRF model:
+Train the NeRF model:
 ```bash
 CUDA_VISIBLE_DEVICES=0 python tasks/run.py --config=egs/datasets/${VIDEO_ID}/lm3d_radnerf_sr.yaml --exp_name=motion2video_nerf/${VIDEO_ID}_head --reset
 ```
 
-Then, train the Torso NeRF model:
-```bash
-CUDA_VISIBLE_DEVICES=0 python tasks/run.py --config=egs/datasets/${VIDEO_ID}/lm3d_radnerf_torso_sr.yaml --exp_name=motion2video_nerf/${VIDEO_ID}_torso --hparams=head_model_dir=checkpoints/motion2video_nerf/${VIDEO_ID}_head --reset
-```
-
-
-- The training process will take approximately 10 hours for each person <!-- To-Do -->
-- For details of each step, refer to `docs/process_data` and `docs/train_and_infer`.
-- Please make sure that the head segment occupies a relatively large region in the video (e.g., similar to the provided `May.mp4`). Or you need to hand-crop your training video. [issue](https://github.com/yerfor/GeneFacePlusPlus/issues/30)
-- Make sure that the talking person appears in every frame of the video, otherwise the data preprocessing pipeline may be failed.
+- The training process will take approximately 20 hours for each person on an A10 GPU
 
 ## Inference with the trained model
-You can run the inference script with the following command:
+### For 
+* First, activate the inference environment:
 ```bash
-CUDA_VISIBLE_DEVICES=0  python inference/genefacepp_infer.py --head_ckpt= --torso_ckpt=motion2video_nerf/${VIDEO_ID}_torso --drv_aud=data/raw/val_wavs/MacronSpeech.wav
+cd /workspace/GeneFacePlusPlus/ && conda activate pytorch && export PYTHONPATH=./ && export VIDEO_ID="X"
 ```
 
-* Use ```--debug``` to visualize intermediate steps during inference
+* Run the inference script with the following command:
+```bash
+python inference/genefacepp_infer.py --a2m_ckpt=checkpoints/audio2motion_vae --head_ckpt=checkpoints/motion2video_nerf/${VIDEO_ID}_head/ --torso_ckpt='' --drv_aud=data/raw/val_wavs/Obama_audio_10s.wav --out_name=Result_${VIDEO_ID}_head/output_${VIDEO_ID}.mp4
+```
+
+### For Half-Body/Full-Body
+* Paste the above generated video file on the top of original video
+```bash
+python3 paste_back.py -i1 original_video_path, -i2 generated_video_path, -c coordinates_path, -o output_video_path
+```
 
 ## Citation
 GeneFace++ Paper:
