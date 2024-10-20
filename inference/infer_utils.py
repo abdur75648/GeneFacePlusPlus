@@ -69,7 +69,7 @@ def smooth_camera_sequence(camera, kernel_size=11):
     camera[:, :16] = poses
     return camera
 
-def smooth_features_xd(in_tensor, kernel_size=15):
+def smooth_features_xd(in_tensor, kernel_size=7):
     """
     smooth the feature maps
     args:
@@ -103,7 +103,7 @@ def smooth_features_xd(in_tensor, kernel_size=15):
 
 
 def remove_wobbles(batch_trans, batch_euler, window_size=25, stride=None):
-    print("Removing wobbles from the translation data")
+    # print("Removing wobbles from the translation data")
     # batch_trans is expected to be a PyTorch tensor of shape (248, 3) [x, y, z]
     
     if stride is None:
@@ -148,8 +148,10 @@ def remove_wobbles(batch_trans, batch_euler, window_size=25, stride=None):
         
         if np.max(window_z) - np.min(window_z) > threshold_z:
             if np.max(window_x) - np.min(window_x) < threshold_x and np.max(window_y) - np.min(window_y) < threshold_y and np.max(window_euler_x) - np.min(window_euler_x) < threshold_euler_x and np.max(window_euler_y) - np.min(window_euler_y) < threshold_euler_y and np.max(window_euler_z) - np.min(window_euler_z) < threshold_euler_z:
-                smoothed_z[i:i+window_size] = medfilt(window_z, kernel_size=15)
-                smoothed_z[i:i+window_size] = savgol_filter(smoothed_z[i:i+window_size], window_size, 7)
+                # print(f"Removing wobbling between time steps {i/25:.2f} and {(i+window_size)/25:.2f} seconds")
+                smoothed_z[max(0,i-window_size//2):min(i+window_size+window_size//2,len(trans_z))] = medfilt(trans_z[max(0,i-window_size//2):min(i+window_size+window_size//2,len(trans_z))] , kernel_size=window_size)
+                smoothed_z[i:i+window_size] = medfilt(smoothed_z[i:i+window_size], kernel_size=(window_size // 2) | 1)
+                smoothed_z[max(0,i-window_size//2):min(i+window_size+window_size//2,len(trans_z))] = savgol_filter(smoothed_z[max(0,i-window_size//2):min(i+window_size+window_size//2,len(trans_z))], window_size, (window_size // 4) | 1)
     
     # Reassemble the smoothed translation tensor (x, y stay the same, z is smoothed)
     smoothed_trans = np.stack((trans_x, trans_y, smoothed_z), axis=1)

@@ -34,7 +34,7 @@ def main():
     parser = argparse.ArgumentParser(description="Crop a video to a person's face bounding box.")
     parser.add_argument('--input_video', '-i', required=True, help="Path to the input video")
     parser.add_argument('--output_video', '-o', required=True, help="Path to the output video")
-    parser.add_argument('--increase_percentage', '-p', type=float, default=0.6, help="Percentage to increase the bounding box (0 being the original size and 1 being 2x the size)")
+    parser.add_argument('--increase_percentage', '-p', type=float, default=1.0, help="Percentage to increase the bounding box (0 being the original size and 1 being 2x the size)")
     parser.add_argument('--no_trim', '-n', action='store_true', help="Do not save the trimmed video")
     args = parser.parse_args()
 
@@ -50,6 +50,7 @@ def main():
     if not args.no_trim:
         crop_video(args.input_video, args.output_video.replace('.mp4', '_5s.mp4'), x1, y1, x2, y2, duration=5)
         print(f"Sampled cropped video (trimmed to 5s) saved as {args.output_video.replace('.mp4', '_5s.mp4')} - Make sure the face is correctly cropped!")
+        exit("Exiting - Check the cropped video before processing the full video!")
     crop_video(args.input_video, args.output_video, x1, y1, x2, y2)
     print(f"Video cropped successfully! Final video saved as {args.output_video}")
 

@@ -6,7 +6,8 @@ from tqdm import tqdm
 import moviepy.editor as mp
 
 def overlay_head_on_body(original_video_path, head_neck_video_path, output_video_path, coordinates_file):
-    os.makedirs(os.path.dirname(output_video_path), exist_ok=True)
+    if os.path.dirname(output_video_path):
+        os.makedirs(os.path.dirname(output_video_path), exist_ok=True)
     
     # Open both video files
     original_video = cv2.VideoCapture(original_video_path)

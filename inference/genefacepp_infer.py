@@ -431,8 +431,26 @@ class GeneFace2Infer:
 
         # face boundark mask, for cond mask
         trans = batch['trans']
+        
+        ### Plot trans in z direction
+        # trans_z = trans[0:248][:,2].cpu().numpy()
+        # mean_line_z = np.mean(trans_z)
+        # fps = 25
+        # time_steps = np.arange(len(trans_z)) / fps  # Time in seconds
+        # import matplotlib.pyplot as plt
+        # plt.figure(figsize=(10, 6))
+        # plt.plot(time_steps, trans_z, label='Z Translation')
+        # plt.axhline(y=mean_line_z, color='r', linestyle='--', label='Mean Z Translation')
+        # plt.xlabel('Time (s)')
+        # plt.ylabel('Z Translation')
+        # plt.title('Z Translation over Time')
+        # plt.legend()
+        # plt.grid()
+        # plt.savefig('infer_z_translation_Girish2Updated_coeff_fit_mp.png')
+        # exit()
+        
         # if inp['remove_wobbles']:
-        trans = remove_wobbles(trans, batch['euler'])
+        # trans = remove_wobbles(trans, batch['euler'])
         smo_euler = smooth_features_xd(batch['euler'])
         smo_trans = smooth_features_xd(trans)
         batch['trans'] = smo_trans
